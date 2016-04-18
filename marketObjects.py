@@ -1,4 +1,5 @@
-import pickle
+from ib.ext.Contract import Contract
+from dataTools import pickler
 
 
 class portfolio(object):
@@ -6,26 +7,31 @@ class portfolio(object):
         self.stocks = []
 
 
-class stock(object):
+class stock(object):  # what if this class was an extension of a contract?
     def __init__(self, symbol):
-        self.symbol = None
+        self.symbol = symbol.upper()
         self.position = 0
         self.last = 0
         self.bid = 0
         self.ask = 0
         self.close = 0
-        self.historicalData = None
+        self.historicalData = []
         self.subscribed = False
-        self.subscriptionIndex = -1
+        self.subscrIndex = -1
         self.options = []
+        self.contract = newContract(self.symbol, 'STK')
+        self.industry = None
 
 
 class option(object):
-    def __init__(self, strike, expiry):
+    def __init__(self, symbol, strike, expiry):
+        self.underlying = None
+        self.symbol = symbol.upper()
         self.expiry = expiry
         self.strike = strike
         self.position = 0
-        self.type = 'PUT'
+        self.opt_type = 'PUT'
+        self.multiplier
         self.last = 0
         self.bid = 0
         self.ask = 0
@@ -35,12 +41,34 @@ class option(object):
         self.expectedValue = 0
         self.annualizedReturn = 0
         self.subscribed = False
-        self.subscriptionIndex = -1
+        self.subscrIndex = -1
+        self.contract = None
 
 
-def newStock(portfolio, symbol):
+def newContract(self, symbol, sec_type, opt_type='', strike='', expiry=''):
+    contract = Contract()
+    contract.m_symbol = symbol
+    contract.m_secType = sec_type
+    contract.m_exchange = 'SMART'
+    contract.m_primaryExchange = 'SMART'
+    contract.m_currency = 'USD'
+    contract.m_expiry = expiry
+    # str(expiry.year*10000 + expiry.month*100 + expiry.day)
+    contract.m_strike = float(strike)
+    contract.m_multiplier = 100
+    contract.m_right = opt_type
+    return contract
+
+
+def newStock(portfolioObject, symbol):
     newStock = stock(symbol)
-    portfolio.stocks.append(newStock)
+    portfolioObject.stocks.append(newStock)
+
+
+def newOption(stockObject, strike, expiry):
+    newOption = option(stockObject.symbol, strike, expiry)
+    newOption.underlying = stockObject
+    stockObject.options.append(newOption)
 
 
 def buildPortfolio():
@@ -49,19 +77,6 @@ def buildPortfolio():
     thisPortfolio = portfolio()
     while symbols:
         newStock(thisPortfolio, symbols.pop())
-    with open('mammoth.pickle', 'wb') as pickledPortfolio:
-        pickle.dump(thisPortfolio, pickledPortfolio)
+    pickler(thisPortfolio, 'portfolio')
     print thisPortfolio
     print thisPortfolio.stocks
-
-
-def picklePortfolio(thisPortfolio):
-    with open('mammoth.pickle', 'wb') as pickledPortfolio:
-        pickle.dump(thisPortfolio, pickledPortfolio)
-
-
-def unPicklePortfolio():
-    with open('mammoth.pickle', 'rb') as pickledPortfolio:
-        thisPortfolio = pickle.load(pickledPortfolio)
-    return thisPortfolio
-

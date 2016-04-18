@@ -11,7 +11,7 @@ def isWeekday(addDays=0):
         return False
 
 
-def secondsToOpen():
+def secondsTilOpen():
     # returns seconds until 9:30am on next weekday
     sec = 0
     sec += (23 - datetime.now().hour) * 3600
@@ -25,6 +25,3 @@ def secondsToOpen():
     if wd > 3:
         sec += (6 - wd) * 24 * 3600
     return sec
-
-def orderList():
-    pass
