@@ -1,9 +1,10 @@
 from ib.ext.Contract import Contract
 from ib.opt import ibConnection, message
-from marketObjects import newOption, newContract
+from marketObjects import newStock, newOption, newContract, buildPortfolio
 from dataTools import pickler, unPickler
 from logicTools import isWeekday, secondsTilOpen
 from datetime import datetime as t
+from time import sleep
 
 
 def main():
@@ -25,22 +26,26 @@ def initialize():
     for i in mammoth.stocks:
         subscriptions[k] = i
         i.subscrIndex = k
-        subscriptionManager(i, True, True)
+        subscriptionManager(i, True)
         k += 1
         for j in i.options:
             subscriptions[k] = j
             j.subscrIndex = k
-            subscriptionManager(j, True, True)
+            subscriptionManager(j, True)
             k += 1
 
 
 def ready():
     try:
+        con
+    except NameError:
+        main()
+    if not con.m_connected:
+        main()
+    try:
         mammoth
     except NameError:
         initialize()
-    if not con.m_connected:
-        main()
 
 
 ###############################################################################
@@ -52,26 +57,27 @@ def updateAllContracts():
     ready()
     for i in mammoth.stocks:
         getContractDetails(i)
+#        sleep(1)
 
 
 def getContractDetails(stockObject):
     reqId = stockObject.subscrIndex
     contract = newContract(stockObject.symbol, 'STK')
     con.reqContractDetails(reqId, contract)
-    contract = newContract(stockObject.symbol, 'OPT', opt_type='PUT')
+    contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
     con.reqContractDetails(reqId, contract)
 
 
 def contractDetailsHandler(msg):  # reqId is for underlying stock
     thisStock = subscriptions[msg.reqId]
     thisContract = msg.contractDetails.m_summary
-    if thisContract.sec_type == 'STK':
+    if thisContract.m_secType == 'STK':
         thisStock.industry = msg.contractDetails.m_industry
         thisStock.contract = thisContract
     dupe = False
-    if thisContract.sec_type == 'OPT':
+    if thisContract.m_secType == 'OPT':
         for i in thisStock.options:
-            if i.contract.conId == thisContract.m_conId:
+            if i.contract.m_conId == thisContract.m_conId:
                 dupe = True
                 break
     if not dupe:
@@ -106,10 +112,10 @@ def marketDataHandler(msg):
         pass  # thisObject.low = msg.price
     elif msg.field == 9:
         thisObject.close = msg.price
-    if thisObject.sec_type == 'STK':
-        stockDataProcessor()
-    elif thisObject.sec_type == 'OPT':
-        optionDataProcessor()
+    if thisObject.secType == 'STK':
+        stockDataProcessor(thisObject)
+    elif thisObject.secType == 'OPT':
+        optionDataProcessor(thisObject)
 
 
 ###############################################################################
@@ -156,24 +162,38 @@ def optionDataProcessor(optionObject):
 #   PROGRAM
 ###############################################################################
 
+if __name__ == "__main__":
+    program = False
+#    symbols = []  # 'AAPL']  # , 'CAT', 'MSFT', 'BAC']
+    symbol = 'TSLA'
+#    buildPortfolio(symbols)
+    ready()
+    sleep(3)
+    newStock(mammoth, symbol)
+    pickler(mammoth, 'portfolio')
+    initialize()
+    updateAllContracts()
+    sleep(3)
+    pickler(mammoth, 'portfolio')
+    initialize()
+    print(len(subscriptions))
+#    print(subscriptions)
+#    pickler(mammoth, 'portfolio')
 
-initialize()
-print(subscriptions)
-
-if False:  # __name__ == "__main__":
-    main()
-    while isWeekday():
-        # today is a trading day
-        initialize()
-        updateAllContracts()
-        while t.now().hour < 16:
-            # it's trading hours
-            pass
-            # subscribe to everything
-            # as quotes come in, selectively unsubscribe/re-subsubscribe
-            # as quotes come in, promote best option from each stock
-            # limit two stocks per industry
-            # reorder best
-        # unsubscribe from everything
-        pickler(mammoth, 'portfolio')
-        sleep(secondsTilOpen()-1800)  # start up 30 minutes before trading
+    if program:
+        main()
+        while isWeekday():
+            # today is a trading day
+            initialize()
+            updateAllContracts()
+            while t.now().hour < 16:
+                # it's trading hours
+                pass
+                # subscribe to everything
+                # as quotes come in, selectively unsubscribe/re-subsubscribe
+                # as quotes come in, promote best option from each stock
+                # limit two stocks per industry
+                # reorder best
+            # unsubscribe from everything
+            pickler(mammoth, 'portfolio')
+            sleep(secondsTilOpen()-1800)  # start up 30 minutes before trading
