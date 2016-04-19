@@ -13,6 +13,7 @@ def main():
     # 7496 for real account, 7497 for paper trader
     con.register(marketDataHandler, message.tickPrice)
     con.register(contractDetailsHandler, 'ContractDetails')
+    con.register(contractDetailsEnder, 'ContractDetailsEnd')
     con.register(historicalDataHandler, message.historicalData)
     con.connect()
 
@@ -57,7 +58,6 @@ def updateAllContracts():
     ready()
     for i in mammoth.stocks:
         getContractDetails(i)
-#        sleep(1)
 
 
 def getContractDetails(stockObject):
@@ -66,6 +66,13 @@ def getContractDetails(stockObject):
     con.reqContractDetails(reqId, contract)
     contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
     con.reqContractDetails(reqId, contract)
+#    global cooker
+#    cooker = True
+#    i = 0
+#    while cooker and i < 10:
+#        sleep(1)
+#        i += 1
+#        print(stockObject.symbol + ' wait for ' + str(i))
 
 
 def contractDetailsHandler(msg):  # reqId is for underlying stock
@@ -85,6 +92,11 @@ def contractDetailsHandler(msg):  # reqId is for underlying stock
                               thisContract.m_expiry)
         addOption.contract = thisContract
         thisStock.options.append(addOption)
+
+
+def contractDetailsEnder(msg):
+    global cooker
+    cooker = False
 
 
 ###############################################################################
@@ -164,19 +176,18 @@ def optionDataProcessor(optionObject):
 
 if __name__ == "__main__":
     program = False
-#    symbols = []  # 'AAPL']  # , 'CAT', 'MSFT', 'BAC']
-    symbol = 'TSLA'
-#    buildPortfolio(symbols)
+#    cooker = False
+    symbols = ['AXP']  # , 'CAT', 'MSFT', 'BAC']
+    buildPortfolio(symbols)
     ready()
-    sleep(3)
-    newStock(mammoth, symbol)
-    pickler(mammoth, 'portfolio')
-    initialize()
     updateAllContracts()
-    sleep(3)
+    sleep(5)
     pickler(mammoth, 'portfolio')
     initialize()
     print(len(subscriptions))
+    for i in mammoth.stocks:
+        print(i.symbol)
+        print(len(i.options))
 #    print(subscriptions)
 #    pickler(mammoth, 'portfolio')
 

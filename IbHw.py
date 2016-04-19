@@ -6,9 +6,9 @@ from datetime import datetime
 
 
 def print_message_from_ib(msg):
-#    print(msg)
+    print(msg)
 #    print(msg.contractDetails.m_summary)#.m_expiry)
-    print(msg.contractDetails.m_summary.m_conId, msg.contractDetails.m_summary.m_strike)
+#    print(msg.contractDetails.m_summary.m_conId, msg.contractDetails.m_summary.m_strike)
 
 
 def main():
@@ -87,7 +87,7 @@ def marketDataHandler(msg):
 
 if __name__ == "__main__":
     main()
-    thisContract = newContract('BAC', 'OPT', expiry='20160520', opt_type='PUT')
+    thisContract = newContract('LVLT', 'OPT', expiry='20160520', opt_type='PUT')
 #    trdList = []
 #    hisVolList = []
 #    impVolList = []
