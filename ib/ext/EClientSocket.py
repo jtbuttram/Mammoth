@@ -29,10 +29,10 @@ from ib.lib import Double, Integer
 
 from threading import RLock
 mlock = RLock()
-# 
+#
 #  * EClientSocket.java
 #  *
-#  
+#
 # package: com.ib.client
 
 class EClientSocket(object):
@@ -70,10 +70,10 @@ class EClientSocket(object):
     #  29 = can receive trail stop limit price in open order and can place them: API 8.91
     #  30 = can receive extended bond contract def, new ticks, and trade count in bars
     #  31 = can receive EFP extensions to scanner and market data, and combo legs on open orders
-    #     ; can receive RT bars 
+    #     ; can receive RT bars
     #  32 = can receive TickType.LAST_TIMESTAMP
-    #     ; can receive "whyHeld" in order status messages 
-    #  33 = can receive ScaleNumComponents and ScaleComponentSize is open order messages 
+    #     ; can receive "whyHeld" in order status messages
+    #  33 = can receive ScaleNumComponents and ScaleComponentSize is open order messages
     #  34 = can receive whatIf orders / order state
     #  35 = can receive contId field for Contract objects
     #  36 = can receive outsideRth field for Order objects
@@ -104,7 +104,7 @@ class EClientSocket(object):
     #  51 = can receive smartComboRoutingParams in openOrder
     #  52 = can receive deltaNeutralConId, deltaNeutralSettlingFirm, deltaNeutralClearingAccount and deltaNeutralClearingIntent in openOrder
     #  53 = can receive orderRef in execution
-    #  54 = can receive scale order fields (PriceAdjustValue, PriceAdjustInterval, ProfitOffset, AutoReset, 
+    #  54 = can receive scale order fields (PriceAdjustValue, PriceAdjustInterval, ProfitOffset, AutoReset,
     #       InitPosition, InitFillQty and RandomPercent) in openOrder
     #  55 = can receive orderComboLegs (price) in openOrder
     #  56 = can receive trailingPercent in openOrder
@@ -215,7 +215,7 @@ class EClientSocket(object):
     MIN_SERVER_VER_ACCT_SUMMARY = 67
     MIN_SERVER_VER_TRADING_CLASS = 68
     MIN_SERVER_VER_SCALE_TABLE = 69
-    
+
     m_anyWrapper = None #  msg handler
     m_dos = None    #  the socket output stream
     m_connected = bool()    #  true if we are connected
@@ -536,7 +536,7 @@ class EClientSocket(object):
             self.error(tickerId, EClientErrors.FAIL_SEND_CANRTBARS, str(e))
             self.close()
 
-    #  Note that formatData parameter affects intra-day bars only; 1-day bars always return with date in YYYYMMDD format. 
+    #  Note that formatData parameter affects intra-day bars only; 1-day bars always return with date in YYYYMMDD format.
     @synchronized(mlock)
     def reqHistoricalData(self, tickerId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate):
         """ generated source for method reqHistoricalData """
@@ -551,7 +551,7 @@ class EClientSocket(object):
                 return
             if self.m_serverVersion < self.MIN_SERVER_VER_TRADING_CLASS:
                 if not self.IsEmpty(contract.m_tradingClass) or (contract.m_conId > 0):
-                    self.error(tickerId, EClientErrors.UPDATE_TWS, "  It does not support conId and trade parameters in reqHistroricalData.")                                                                
+                    self.error(tickerId, EClientErrors.UPDATE_TWS, "  It does not support conId and trade parameters in reqHistroricalData.")
                     return
             self.send(self.REQ_HISTORICAL_DATA)
             self.send(VERSION)
@@ -971,7 +971,7 @@ class EClientSocket(object):
                 self.send(order.m_triggerMethod)
                 if self.m_serverVersion < 38:
                     #  will never happen
-                    self.send(False)#  order.m_ignoreRth 
+                    self.send(False)#  order.m_ignoreRth
                 else:
                     self.send(order.m_outsideRth)
             if self.m_serverVersion >= 7:
@@ -1044,7 +1044,7 @@ class EClientSocket(object):
                 self.send(order.m_ocaType)
                 if self.m_serverVersion < 38:
                     #  will never happen
-                    self.send(False)#  order.m_rthOnly 
+                    self.send(False)#  order.m_rthOnly
                 self.send(order.m_rule80A)
                 self.send(order.m_settlingFirm)
                 self.send(order.m_allOrNone)
@@ -1695,7 +1695,7 @@ class EClientSocket(object):
         except Exception as e:
             self.error(EClientErrors.NO_VALID_ID, EClientErrors.FAIL_SEND_CANACCOUNTDATA, "" + e)
 
-    #  @deprecated, never called. 
+    #  @deprecated, never called.
     @overloaded
     @synchronized(mlock)
     def error(self, err):
