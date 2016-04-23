@@ -18,7 +18,7 @@ def main():
     con.connect()
 
 
-def initialize(subscribe=True):
+def initialize():
     global mammoth
     global subscriptions
     subscriptions = {}
@@ -27,14 +27,12 @@ def initialize(subscribe=True):
     for i in mammoth.stocks:
         subscriptions[k] = i
         i.subscrIndex = k
-        if subscribe:
-            subscriptionManager(i, True)
+        subscriptionManager(i, True)
         k += 1
         for j in i.options:
             subscriptions[k] = j
             j.subscrIndex = k
-            if subscribe:
-                subscriptionManager(j, True)
+            subscriptionManager(j, True)
             k += 1
 
 
@@ -180,17 +178,18 @@ def optionDataProcessor(optionObject):
 if __name__ == "__main__":
     program = False
 
-#    symbols = ['AXP', 'CAT', 'MSFT', 'BAC', 'GSK', 'TSLA', 'COF', 'NKE',
-#               'NFLX', 'AAPL']
-#    buildPortfolio(symbols)
-#    ready()
-#    updateAllContracts()
-#    sleep(5)
-#    pickler(mammoth, 'portfolio')
-    initialize(False)
-#    print(len(subscriptions))
+    symbols = ['AXP', 'CAT', 'MSFT', 'BAC', 'GSK', 'TSLA', 'COF', 'NKE',
+               'NFLX', 'AAPL']
+    buildPortfolio(symbols)
+    ready()
+    updateAllContracts()
+    pickler(mammoth, 'portfolio')
+    initialize()
     for i in mammoth.stocks:
         print(str(len(i.options)) + ' options in ' + i.symbol)
+    for i in mammoth.stocks:
+        for j in i.options:
+            print(str(j.symbol) + ' ' + str(j.expiry) + ' ' + str(j.strike))
 #    print(subscriptions)
 #    pickler(mammoth, 'portfolio')
 
