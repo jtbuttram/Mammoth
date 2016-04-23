@@ -18,7 +18,7 @@ def main():
     con.connect()
 
 
-def initialize():
+def initialize(subscribe=True):
     global mammoth
     global subscriptions
     subscriptions = {}
@@ -27,12 +27,14 @@ def initialize():
     for i in mammoth.stocks:
         subscriptions[k] = i
         i.subscrIndex = k
-        subscriptionManager(i, True)
+        if subscribe:
+            subscriptionManager(i, True)
         k += 1
         for j in i.options:
             subscriptions[k] = j
             j.subscrIndex = k
-            subscriptionManager(j, True)
+            if subscribe:
+                subscriptionManager(j, True)
             k += 1
 
 
@@ -66,13 +68,14 @@ def getContractDetails(stockObject):
     con.reqContractDetails(reqId, contract)
     contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
     con.reqContractDetails(reqId, contract)
-#    global cooker
-#    cooker = True
-#    i = 0
-#    while cooker and i < 10:
-#        sleep(1)
-#        i += 1
-#        print(stockObject.symbol + ' wait for ' + str(i))
+    global cooker
+    cooker = True
+    i = 0
+    while cooker and i < 120:
+        sleep(0.1)
+        i += 0.1
+    print('Returned ' + str(len(stockObject.options)) + ' options for ' +
+          stockObject.symbol + ' in ' + str(i) + ' seconds')
 
 
 def contractDetailsHandler(msg):  # reqId is for underlying stock
@@ -176,18 +179,18 @@ def optionDataProcessor(optionObject):
 
 if __name__ == "__main__":
     program = False
-#    cooker = False
-    symbols = ['AXP']  # , 'CAT', 'MSFT', 'BAC']
-    buildPortfolio(symbols)
-    ready()
-    updateAllContracts()
-    sleep(5)
-    pickler(mammoth, 'portfolio')
-    initialize()
-    print(len(subscriptions))
+
+#    symbols = ['AXP', 'CAT', 'MSFT', 'BAC', 'GSK', 'TSLA', 'COF', 'NKE',
+#               'NFLX', 'AAPL']
+#    buildPortfolio(symbols)
+#    ready()
+#    updateAllContracts()
+#    sleep(5)
+#    pickler(mammoth, 'portfolio')
+    initialize(False)
+#    print(len(subscriptions))
     for i in mammoth.stocks:
-        print(i.symbol)
-        print(len(i.options))
+        print(str(len(i.options)) + ' options in ' + i.symbol)
 #    print(subscriptions)
 #    pickler(mammoth, 'portfolio')
 

@@ -87,7 +87,7 @@ def marketDataHandler(msg):
 
 if __name__ == "__main__":
     main()
-    thisContract = newContract('LVLT', 'OPT', expiry='20160520', opt_type='PUT')
+    thisContract = newContract('LVLT', 'STK')  # , expiry='20160520', opt_type='PUT')
 #    trdList = []
 #    hisVolList = []
 #    impVolList = []
