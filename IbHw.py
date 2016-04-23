@@ -13,10 +13,13 @@ def print_message_from_ib(msg):
 
 def main():
     global con
-    con = ibConnection(port=7497, clientId=1618)
+    con = ibConnection(port=7496, clientId=1618)
     # clientId = 7496 for real account, 7497 for paper trader
-#    con.registerAll(print_message_from_ib)
-    con.register(print_message_from_ib, 'ContractDetails')
+    con.registerAll(print_message_from_ib)
+#    con.register(print_message_from_ib, 'UpdateAccountValue')
+#    con.register(print_message_from_ib, 'UpdatePortfolio')
+#    con.register(print_message_from_ib, 'UpdateAccountTime')
+#    con.register(print_message_from_ib, 'ContractDetails')
 #    con.register(historicalDataHandler, message.historicalData)
 #    con.register(marketDataHandler, message.tickPrice)
 #    con.register(marketDataHandler, message.tickSize)
@@ -27,7 +30,6 @@ def main():
 
     sleep(1)  # Give the program time to print messages sent from IB
 #    con.disconnect()
-    print(con.m_connected)
 
 
 def newContract(symbol, sec_type, exch='SMART', prim_exch='SMART', curr='USD',
@@ -86,17 +88,20 @@ def marketDataHandler(msg):
     print(msg.typeName)
 
 if __name__ == "__main__":
+
     main()
-    thisContract = newContract('LVLT', 'STK')  # , expiry='20160520', opt_type='PUT')
+    con.reqAccountUpdates(True, 'U1385930')
+    sleep(8)
+#    thisContract = newContract('LVLT', 'STK')  # , expiry='20160520', opt_type='PUT')
 #    trdList = []
 #    hisVolList = []
 #    impVolList = []
 #    getMarketData(thisContract)
-    getContractDetails(thisContract)
+#    getContractDetails(thisContract)
 #    getHistorialData(thisContract, 'TRADES', 1)
 #    getHistorialData(thisContract, 'HISTORICAL_VOLATILITY', 6)
 #    getHistorialData(thisContract, 'OPTION_IMPLIED_VOLATILITY', 7)
-    sleep(5)
+#    sleep(5)
 #    print(thisList)
 #    ll = len(thisList)
 #    for i in range(ll):
@@ -104,4 +109,4 @@ if __name__ == "__main__":
 #        print(thisMsg)
     #    print(thisMsg.date, thisMsg.open)
     #    i += 1
-    con.disconnect
+#    con.disconnect
