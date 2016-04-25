@@ -3,16 +3,18 @@ from ib.opt import ibConnection, message
 from marketObjects import *
 # newStock, newOption, newContract, buildPortfolio, removeExpiredContracts, promote, newOpenPosition
 from dataTools import pickler, unPickler
-from logicTools import isWeekday, secondsTilOpen
-from datetime import datetime as t
+from logicTools import isWeekday, secondsTilOpen, callMonitor
+from datetime import datetime, timedelta
 from time import sleep
 from calendar import weekday
-from brain import newTarget
+from brain import newTarget, optionValue
+
 
 '''
 ACCEPTANCE CRITERIA
 -------------------------------------------------------------------------------
 * subscribe to everything before market open
+* if connection is lost, reconnect and re-subscribe to everything
 * at portfolio level:
     * track positions
     * track available funds
@@ -27,8 +29,12 @@ ACCEPTANCE CRITERIA
     * trade to optimize return, including cost of trades
     * avoid day trades
     * limit two positions per industry
+* limit program to 100 outstanding requests
+    * global variable and function to interact with it
+        * function returns true if ok to submit requests
 -------------------------------------------------------------------------------
 '''
+
 
 def main():
     global con
@@ -56,17 +62,16 @@ def initialize():
     for i in mammoth.stocks:
         subscriptions[k] = i
         i.subscrIndex = k
-        subscriptionManager(i, True)
+        subscriptionManager(i)
         k += 1
         contracts[i.contract.m_conId] = i
         for j in i.options:
             subscriptions[k] = j
             j.subscrIndex = k
-            subscriptionManager(j, True)
+#            subscriptionManager(j)
             k += 1
             contracts[j.contract.m_conId] = j
-    con.reqAccountUpdates(True, 'U1385930')
-    print('Account details requested.')
+#    con.reqAccountUpdates(True, 'U1385930')
 
 
 def ready():
@@ -81,7 +86,7 @@ def ready():
     except NameError:
         initialize()
     global lastMsg
-    lastMsg = t.now()
+    lastMsg = datetime.now()
 
 
 def updateMammoth():
@@ -89,18 +94,27 @@ def updateMammoth():
     for i in mammoth.stocks:
         removeExpiredContracts(i)
         getContractDetails(i)
+#        j = 0
+        while callMonitor():
+            sleep(1)
+#            if j % 10 == 9:
+#                print('%d calls cooking...') % callMonitor()
+#            else:
+#                print j
+#            j += 1
 
 
 def allMessageHandler(msg):
     global lastMsg
-    lastMsg = t.now()
+    lastMsg = datetime.now()
+#    print(msg)
 
 
 def woolly():
-    timeOut = t.timedelta(minutes=10)
+    timeOut = datetime.timedelta(minutes=10)
     ready()
     while True:
-        while t.now() < lastMsg + timeOut:
+        while datetime.now() < lastMsg + timeOut:
             ready()
             sleep(60)
         con.disconnect()
@@ -146,30 +160,26 @@ def positionsHandler(msg):
 
 
 def getContractDetails(stockObject):
+    ready()
     reqId = stockObject.subscrIndex
+
     contract = newContract(stockObject.symbol, 'STK')
-    con.reqContractDetails(reqId, contract)
+    callMonitor(reqId + 90000000)
+    con.reqContractDetails(reqId + 90000000, contract)
+
     contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
+    callMonitor(reqId)
     con.reqContractDetails(reqId, contract)
-    global cooker
-    cooker = True
-    i = 0
-    while cooker and i < 120:
-        sleep(0.1)
-        i += 0.1
-    print('Returned ' + str(len(stockObject.options)) + ' options for ' +
-          stockObject.symbol + ' in ' + str(i) + ' seconds')
 
 
 def contractDetailsHandler(msg):  # reqId is for underlying stock
     thisContract = msg.contractDetails.m_summary
     try:
-        thisObject = contracts[thisContract.m_conId]
+        contracts[thisContract.m_conId]
     except KeyError:
-        if thisContract.m_conId is None:
-            pass
-        else:
-            thisStock = subscriptions[msg.reqId]
+        if thisContract.m_conId:
+            subId = msg.reqId % 90000000
+            thisStock = subscriptions[subId]
             if thisContract.m_secType == 'STK':
                 thisStock.industry = msg.contractDetails.m_industry
                 thisStock.contract = thisContract
@@ -181,8 +191,7 @@ def contractDetailsHandler(msg):  # reqId is for underlying stock
 
 
 def contractDetailsEnder(msg):
-    global cooker
-    cooker = False
+    callMonitor(msg.reqId, True)
 
 
 ###############################################################################
@@ -191,13 +200,16 @@ def contractDetailsEnder(msg):
 
 
 def subscriptionManager(marketObject, subscription=False):
+    ready()
     marketObject.subscription = subscription
+    callMonitor(marketObject.subscrIndex, timeout=5)
     con.reqMktData(marketObject.subscrIndex, marketObject.contract, '',
                    not subscription)
-    sleep(0.01)  # avoid 100+ simultaneous requests
+#    sleep(0.02)  # avoid 100+ simultaneous requests
 
 
 def marketDataHandler(msg):
+    callMonitor(msg.tickerId, True)
     thisObject = subscriptions[msg.tickerId]
     if msg.field == 1:
         thisObject.bid = msg.price
@@ -223,9 +235,10 @@ def marketDataHandler(msg):
 
 
 def getHistorialData(contract, whatToShow, reqId):
+    ready()
     # https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
     tickerId = reqId
-    endDateTime = t.today().strftime("%Y%m%d %H:%M:%S %Z")
+    endDateTime = datetime.today().strftime("%Y%m%d %H:%M:%S %Z")
     durationStr = "5 D"
     barSizeSetting = "1 day"
     # whatToShow='TRADES' #'TRADES', 'MIDPOINT', 'BID', 'ASK', 'BID_ASK',
@@ -254,8 +267,8 @@ def stockDataProcessor(stockObject):
     for expiry, target in stockObject.target.iteritems():
         stockObject.target[expiry] = newTarget(expiry, stockObject)
     # update option EVs (numpy based on volatility)
-    for j in stockObject.options:
-        j.expectedValue = optionValue(j)
+#    for j in stockObject.options:
+#        j.expectedValue = optionValue(j)
 
 
 def optionDataProcessor(optionObject):
@@ -270,20 +283,20 @@ def optionDataProcessor(optionObject):
 ###############################################################################
 
 if __name__ == "__main__":
-#    ready()
+    ready()
 #    print('Done.')
 #    sleep(8)
 #    woolly()
 
-    symbols = ['AXP', 'CAT', 'MSFT', 'BAC', 'GSK', 'TSLA', 'COF', 'NKE',
-               'NFLX', 'AAPL']
-    buildPortfolio(symbols)
-    ready()
-    updateMammoth()
-    pickler(mammoth, 'portfolio')
+#    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'TSLA', 'NKE',
+#               'NFLX', 'AAPL']
+#    buildPortfolio(symbols)
+#    initialize()
+#    updateMammoth()
+#   pickler(mammoth, 'portfolio')
 #    initialize()
 #    mammoth = unPickler('portfolio')
-
+    sleep(8)
     for i in mammoth.stocks:
         print(str(len(i.options)) + ' options in ' + i.symbol)
 #        for j in i.options:

@@ -36,7 +36,7 @@ class stock(object):  # what if this class was an extension of a contract?
         self.subscrIndex = -1
         self.options = []
         self.promoted = ''  # highest EV option for each stock
-        self.contract = Contract()  # newContract(self.symbol, 'STK')
+        self.contract = newContract(self.symbol, 'STK')
         self.industry = None
 
 
@@ -73,7 +73,7 @@ def newContract(symbol, secType, optType='', strike=0, expiry=''):
     contract.m_exchange = 'SMART'
     contract.m_primaryExchange = 'SMART'
     contract.m_currency = 'USD'
-    contract.m_expiry = expiry  # is this datetime or dateString?
+    contract.m_expiry = expiry  # dateString
     contract.m_strike = float(strike)
     contract.m_multiplier = 100
     contract.m_right = optType

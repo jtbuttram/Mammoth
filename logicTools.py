@@ -1,4 +1,5 @@
-from datetime import datetime
+from time import sleep
+from datetime import datetime, timedelta, date
 from calendar import weekday
 from numpy import busday_count
 
@@ -57,7 +58,52 @@ def secondsTilClose():
 
 
 def weekdaysUntil(dateString):
-    beginDate = datetime.today()
-    endDate = dateStringConverter(dateString)
+    beginDate = datetime.today().date()
+    endDate = dateStringConverter(dateString).date()
     weekdays = busday_count(beginDate, endDate)
     return weekdays
+
+
+def callMonitor(callId=None, resolve=False, timeout=100):
+    # leave callId blank to return number of outstanding calls
+    timeOut = timedelta(seconds=timeout)
+    global cooker
+    if callId is not None:
+        try:
+            cooker
+        except NameError:
+            cooker = {}
+#        if not cooker:
+#            cooker[-1] = datetime.now() - timeOut
+#        while cooker:
+        if resolve:
+            try:
+                elapsed = (datetime.now() - cooker[callId]).microseconds / 1000
+                del cooker[callId]
+                print('resolved callId %d in %d ms') % (callId, elapsed)
+            except KeyError:
+                pass
+        else:
+            while len(cooker) >= 100:
+                sleep(1)
+                print('trying to add callId %d') % callId
+            cooker[callId] = datetime.now()
+            print('monitoring callId %d') % callId
+            trash = []
+            for k, v in cooker.iteritems():
+                if v < datetime.now() - timeOut:
+                    trash.append(k)
+            while trash:
+                del cooker[trash.pop()]
+    else:
+        try:
+            cooker
+        except NameError:
+            return 0
+        trash = []
+        for k, v in cooker.iteritems():
+            if v < datetime.now() - timeOut:
+                trash.append(k)
+        while trash:
+            del cooker[trash.pop()]
+        return len(cooker)
