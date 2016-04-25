@@ -13,14 +13,19 @@ from brain import newTarget, optionValue
 '''
 ACCEPTANCE CRITERIA
 -------------------------------------------------------------------------------
-* subscribe to everything before market open
+* iterate through marketObjects according to likelihood of a trade
+* never subscribe to anything
 * if connection is lost, reconnect and re-subscribe to everything
 * at portfolio level:
     * track positions
     * track available funds
     * cap leverage
 * as quotes come in:
-    * selectively unsubscribe from options
+    * adjust check-in frequency
+        * add to a queue after a variable amount of time
+        * the most competitive objects get added back to queue immediately?
+        * every option gets checked at least once each hour
+        * every stock gets checked at least once each minute
     * calculate value of each option
     * calculate expected return of each option
     * when best expected return for a stock changes, promote that option
