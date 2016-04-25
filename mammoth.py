@@ -71,7 +71,8 @@ def initialize():
 #            subscriptionManager(j)
             k += 1
             contracts[j.contract.m_conId] = j
-#    con.reqAccountUpdates(True, 'U1385930')
+    callMonitor(88888888)
+    con.reqAccountUpdates(True, 'U1385930')
 
 
 def ready():
@@ -149,6 +150,7 @@ def accountDetailsHandler(msg):
 
 
 def positionsHandler(msg):
+    callMonitor(88888888, True)
     thisOption = contracts[msg.contract.m_conId]
     thisOption.position = msg.position
     newOpenPosition(thisOption)
@@ -293,12 +295,13 @@ if __name__ == "__main__":
 #    buildPortfolio(symbols)
 #    initialize()
 #    updateMammoth()
-#   pickler(mammoth, 'portfolio')
+    pickler(mammoth, 'portfolio')
 #    initialize()
 #    mammoth = unPickler('portfolio')
-    sleep(8)
     for i in mammoth.stocks:
         print(str(len(i.options)) + ' options in ' + i.symbol)
+    for j in mammoth.openPositions:
+        print('%d %s %d %s %s') % (j.position, j.symbol, j.strike, j.optType, j.expiry)
 #        for j in i.options:
 #            print(str(j.symbol) + ' ' + str(j.expiry) + ' ' + str(j.strike))
 
