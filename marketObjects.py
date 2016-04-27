@@ -29,7 +29,7 @@ class stock(object):  # what if this class was an extension of a contract?
         self.bid = 0
         self.ask = 0
         self.close = 0
-        self.historicalData = []
+        self.historicalData = {}
         self.impliedVolatility = 0
         self.target = {}
         self.subscribed = False
@@ -59,6 +59,26 @@ class option(object):
         self.subscribed = False
         self.subscrIndex = -1
         self.contract = Contract()
+
+
+class dataFormat(object):
+    def __init__(self):
+        # self.date = -1
+        self.open = -1
+        self.high = -1
+        self.low = -1
+        self.close = -1
+        self.volume = -1
+        self.count = -1
+        self.WAP = -1
+
+
+class historicalData(object):
+    def __init__(self, date):
+        self.date = date
+        self.trades = dataFormat()
+        self.historicalVolatility = dataFormat()
+        self.impliedVolatility = dataFormat()
 
 
 def promote(thisOption):
@@ -128,6 +148,10 @@ def buildPortfolio(symbols):  # symbols is a list of stock symbols
     pickler(thisPortfolio, 'portfolio')
     print('Portfolio built.')
 
+
+def resetContractDetails(portfolioObject):
+    for i in portfolioObject.stocks:
+        i.options = []
 
 if __name__ == "__main__":
 #    buildPortfolio()

@@ -241,27 +241,51 @@ def marketDataHandler(msg):
 ###############################################################################
 
 
-def getHistorialData(contract, whatToShow, reqId):
+def getHistoricalData(contract, whatToShow, reqId):
     ready()
-    # https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
+#    https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
     tickerId = reqId
     endDateTime = datetime.today().strftime("%Y%m%d %H:%M:%S %Z")
     durationStr = "5 D"
     barSizeSetting = "1 day"
-    # whatToShow='TRADES' #'TRADES', 'MIDPOINT', 'BID', 'ASK', 'BID_ASK',
-    # 'HISTORICAL_VOLATILITY', 'OPTION_IMPLIED_VOLATILITY'
-    useRTH = 0
+#    whatToShow = ['TRADES', 'MIDPOINT', 'BID', 'ASK', 'BID_ASK',
+#                  'HISTORICAL_VOLATILITY', 'OPTION_IMPLIED_VOLATILITY']
+    useRTH = 1
     formatDate = 1
 #    chartOptions = None
+    callMonitor(reqId, True)
     con.reqHistoricalData(tickerId, contract, endDateTime, durationStr,
                           barSizeSetting, whatToShow, useRTH, formatDate)
 
 
+def refreshHistoricalData(portfolioObject):
+    for i in portfolioObject.stocks:
+        getHistoricalData(i.contract, 'TRADES', i.subscrIndex + 10000000)
+        getHistoricalData(i.contract, 'HISTORICAL_VOLATILITY',
+                          i.subscrIndex + 60000000)
+        getHistoricalData(i.contract, 'OPTION_IMPLIED_VOLATILITY',
+                          i.subscrIndex + 70000000)
+
+
 def historicalDataHandler(msg):  # reqId is for underlying
-    thisObject = subscriptions[msg.reqId]
-    thisObject.HistoricalData.append((msg.date, msg.open, msg.high, msg.low,
-                                      msg.close, msg.volume, msg.count,
-                                      msg.WAP))
+    thisObject = subscriptions[msg.reqId % 10000000]
+    if msg.date[:8] == 'finished':
+        callMonitor(msg.reqId, False)
+    else:
+        thisObject.historicalData[msg.date] = historicalData(msg.date)
+        if 1 == msg.reqId // 10000000:
+            t = thisObject.historicalData[msg.date].trades
+        elif 6 == msg.reqId // 10000000:
+            t = thisObject.historicalData[msg.date].historicalVolatility
+        elif 7 == msg.reqId // 10000000:
+            t = thisObject.historicalData[msg.date].impliedVolatility
+        t.open = msg.open
+        t.high = msg.high
+        t.low = msg.low
+        t.close = msg.close
+        t.volume = msg.volume
+        t.count = msg.count
+        t.WAP = msg.WAP
 
 
 ###############################################################################
@@ -294,27 +318,31 @@ if __name__ == "__main__":
 #    print('Done.')
 #    sleep(8)
 #    woolly()
-
+ #   resetContractDetails(mammoth)
 #    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'TSLA', 'NKE',
 #               'NFLX', 'AAPL']
 #    buildPortfolio(symbols)
 #    initialize()
 #    updateMammoth()
-    pickler(mammoth, 'portfolio')
+    refreshHistoricalData(mammoth)
+    while callMonitor():
+        sleep(1)
+ #   pickler(mammoth, 'portfolio')
 #    initialize()
 #    mammoth = unPickler('portfolio')
-    for i in mammoth.stocks:
-        print(str(len(i.options)) + ' options in ' + i.symbol)
-    for j in mammoth.openPositions:
-        print('%d %s %d %s %s') % (j.position, j.symbol, j.strike, j.optType, j.expiry)
+ #   for i in mammoth.stocks:
+ #       print(str(len(i.options)) + ' options in ' + i.symbol)
+ #   for j in mammoth.openPositions:
+ #       print('%d %s %d %s %s') % (j.position, j.symbol, j.strike, j.optType, j.expiry)
 #        for j in i.options:
 #            print(str(j.symbol) + ' ' + str(j.expiry) + ' ' + str(j.strike))
 
 #    for i in mammoth.stocks:
 #        removeExpiredContracts(i)
 
-#    for i in mammoth.stocks:
-#        print(str(len(i.options)) + ' options in ' + i.symbol)
+    for i in mammoth.stocks:
+        print('%d options in %s') % (len(i.options), i.symbol)
+        print('%d days of history for %s') % (len(i.historicalData), i.symbol)
 
 #    print(subscriptions)
 #    pickler(mammoth, 'portfolio')
