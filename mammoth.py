@@ -67,13 +67,13 @@ def initialize():
     for i in mammoth.stocks:
         subscriptions[k] = i
         i.subscrIndex = k
-        subscriptionManager(i)
+        getMarketData(i)
         k += 1
         contracts[i.contract.m_conId] = i
         for j in i.options:
             subscriptions[k] = j
             j.subscrIndex = k
-#            subscriptionManager(j)
+#            getMarketData(j)
             k += 1
             contracts[j.contract.m_conId] = j
     callMonitor(88888888, True)
@@ -206,7 +206,7 @@ def contractDetailsEnder(msg):
 ###############################################################################
 
 
-def subscriptionManager(marketObject, subscription=False):
+def getMarketData(marketObject, subscription=False):
     ready()
     marketObject.subscription = subscription
     callMonitor(marketObject.subscrIndex, True, timeout=5)
