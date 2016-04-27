@@ -64,7 +64,7 @@ def weekdaysUntil(dateString):
     return weekdays
 
 
-def callMonitor(callId=None, resolve=False, timeout=100):
+def callMonitor(callId=None, monitorCall=True, timeout=100):
     # leave callId blank to return number of outstanding calls
     timeOut = timedelta(seconds=timeout)
     global cooker
@@ -76,7 +76,7 @@ def callMonitor(callId=None, resolve=False, timeout=100):
 #        if not cooker:
 #            cooker[-1] = datetime.now() - timeOut
 #        while cooker:
-        if resolve:
+        if not monitorCall:
             try:
                 elapsed = (datetime.now() - cooker[callId]).microseconds / 1000
                 del cooker[callId]

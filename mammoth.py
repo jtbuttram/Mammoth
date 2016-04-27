@@ -76,7 +76,7 @@ def initialize():
 #            subscriptionManager(j)
             k += 1
             contracts[j.contract.m_conId] = j
-    callMonitor(88888888)
+    callMonitor(88888888, True)
     con.reqAccountUpdates(True, 'U1385930')
 
 
@@ -155,7 +155,7 @@ def accountDetailsHandler(msg):
 
 
 def positionsHandler(msg):
-    callMonitor(88888888, True)
+    callMonitor(88888888, False)
     thisOption = contracts[msg.contract.m_conId]
     thisOption.position = msg.position
     newOpenPosition(thisOption)
@@ -171,11 +171,11 @@ def getContractDetails(stockObject):
     reqId = stockObject.subscrIndex
 
     contract = newContract(stockObject.symbol, 'STK')
-    callMonitor(reqId + 90000000)
+    callMonitor(reqId + 90000000, True)
     con.reqContractDetails(reqId + 90000000, contract)
 
     contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
-    callMonitor(reqId)
+    callMonitor(reqId, True)
     con.reqContractDetails(reqId, contract)
 
 
@@ -198,7 +198,7 @@ def contractDetailsHandler(msg):  # reqId is for underlying stock
 
 
 def contractDetailsEnder(msg):
-    callMonitor(msg.reqId, True)
+    callMonitor(msg.reqId, False)
 
 
 ###############################################################################
@@ -209,14 +209,14 @@ def contractDetailsEnder(msg):
 def subscriptionManager(marketObject, subscription=False):
     ready()
     marketObject.subscription = subscription
-    callMonitor(marketObject.subscrIndex, timeout=5)
+    callMonitor(marketObject.subscrIndex, True, timeout=5)
     con.reqMktData(marketObject.subscrIndex, marketObject.contract, '',
                    not subscription)
 #    sleep(0.02)  # avoid 100+ simultaneous requests
 
 
 def marketDataHandler(msg):
-    callMonitor(msg.tickerId, True)
+    callMonitor(msg.tickerId, False)
     thisObject = subscriptions[msg.tickerId]
     if msg.field == 1:
         thisObject.bid = msg.price
