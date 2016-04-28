@@ -30,11 +30,12 @@ class stock(object):  # what if this class was an extension of a contract?
         self.ask = 0
         self.close = 0
         self.historicalData = {}
+        self.historicalVolatility = 0
         self.impliedVolatility = 0
         self.target = {}
         self.subscribed = False
         self.subscrIndex = -1
-        self.options = []
+        self.options = {}
         self.promoted = ''  # highest EV option for each stock
         self.contract = newContract(self.symbol, 'STK')
         self.industry = None
@@ -108,10 +109,13 @@ def newStock(portfolioObject, symbol):
     return newStock
 
 
-def newOption(stockObject, strike, expiry):
+def newOption(stockObject, contract):
+    strike = contract.m_strike
+    expiry = contract.m_expiry
     newOption = option(stockObject.symbol, strike, expiry)
     newOption.underlying = stockObject
-    stockObject.options.append(newOption)
+    newOption.contract = contract
+    stockObject.options[contract.m_conId] = newOption
     stockObject.target[expiry] = 0
     return newOption
 
@@ -146,6 +150,7 @@ def buildPortfolio(symbols):  # symbols is a list of stock symbols
     while symbols:
         newStock(thisPortfolio, symbols.pop())
     pickler(thisPortfolio, 'portfolio')
+#    return thisPortfolio
     print('Portfolio built.')
 
 

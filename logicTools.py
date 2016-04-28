@@ -16,7 +16,7 @@ def isWeekday(addDays=0):
 def datetimeConverver(date='today'):
     if date == 'today':
         date = datetime.today()
-    dateString = str(date.year * 10000 + date.month * 100 + date.day)
+    dateString = date.strftime('%Y%m%d')
     return dateString
 
 

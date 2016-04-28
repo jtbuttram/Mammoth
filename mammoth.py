@@ -3,11 +3,12 @@ from ib.opt import ibConnection, message
 from marketObjects import *
 # newStock, newOption, newContract, buildPortfolio, removeExpiredContracts, promote, newOpenPosition
 from dataTools import pickler, unPickler
-from logicTools import isWeekday, secondsTilOpen, callMonitor
+from logicTools import *
 from datetime import datetime, timedelta
 from time import sleep
 from calendar import weekday
 from brain import newTarget, optionValue
+import math
 
 
 '''
@@ -37,6 +38,10 @@ ACCEPTANCE CRITERIA
 * limit program to 100 outstanding requests
     * global variable and function to interact with it
         * function returns true if ok to submit requests
+* only store contract details for imminently relevant options
+    * strike near last (w/n annualized volatility from historical data)
+    * expiry w/n 40 weekdays
+* pull in history when initializing (but only if not up to date)
 -------------------------------------------------------------------------------
 '''
 
@@ -76,8 +81,7 @@ def initialize():
 #            getMarketData(j)
             k += 1
             contracts[j.contract.m_conId] = j
-    callMonitor(88888888, True)
-    con.reqAccountUpdates(True, 'U1385930')
+#    getAccountDetails()
 
 
 def ready():
@@ -135,6 +139,11 @@ def woolly():
 ###############################################################################
 
 
+def getAccountDetails():
+    callMonitor(88888888, True)
+    con.reqAccountUpdates(False, 'U1385930')
+
+
 def accountDetailsHandler(msg):
     if msg.key == 'CashBalance' and msg.currency == 'USD':
         mammoth.cashBalance = msg.value
@@ -181,20 +190,38 @@ def getContractDetails(stockObject):
 
 def contractDetailsHandler(msg):  # reqId is for underlying stock
     thisContract = msg.contractDetails.m_summary
-    try:
-        contracts[thisContract.m_conId]
-    except KeyError:
-        if thisContract.m_conId:
-            subId = msg.reqId % 90000000
-            thisStock = subscriptions[subId]
-            if thisContract.m_secType == 'STK':
-                thisStock.industry = msg.contractDetails.m_industry
-                thisStock.contract = thisContract
-            elif thisContract.m_secType == 'OPT':
-                addOption = newOption(thisStock, thisContract.m_strike,
-                                      thisContract.m_expiry)
-                addOption.contract = thisContract
-                thisStock.options.append(addOption)
+    cId = thisContract.m_conId
+    thisStock = subscriptions[msg.reqId % 90000000]
+    if thisContract.m_conId:
+        if keepContract(thisContract, thisStock):
+            try:  # see if marketObject already exists
+                contracts[cId]
+            except KeyError:  # create new marketObject
+                if thisContract.m_secType == 'OPT':
+                    contracts[cId] = newOption(thisStock, thisContract)
+                elif thisContract.m_secType == 'STK':
+                    thisStock.industry = msg.contractDetails.m_industry
+                    thisStock.contract = thisContract
+        else:
+            try:
+                del thisStock.options[cId]
+                del contracts[cId]
+            except KeyError:
+                pass
+
+
+def keepContract(contract, stockObject):
+    dayVol = thisStock.historicalVolatility / math.sqrt(250)
+    last = stockObject.last
+    srike = contract.m_strike
+    expiry = dateStringConverver(contract.m_expiry)
+    t = weekdaysUntil(expiry)
+    tq = math.sqrt(t)
+    tooHigh = (strike > last * (1 + dayVol * tq * 2))
+    tooLow = (strike < last * (1 - dayVol * tq * 2))
+    tooFar = (t > 40)
+    keepIt = (not tooHigh) and (not tooLow) and (not tooFar)
+    return keepIt
 
 
 def contractDetailsEnder(msg):
@@ -245,7 +272,8 @@ def getHistoricalData(contract, whatToShow, reqId):
     ready()
 #    https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
     tickerId = reqId
-    endDateTime = datetime.today().strftime("%Y%m%d %H:%M:%S %Z")
+    endDateTime = datetimeConverver()
+#    endDateTime = datetime.today().strftime("%Y%m%d %H:%M:%S %Z")
     durationStr = "5 D"
     barSizeSetting = "1 day"
 #    whatToShow = ['TRADES', 'MIDPOINT', 'BID', 'ASK', 'BID_ASK',
@@ -271,6 +299,8 @@ def historicalDataHandler(msg):  # reqId is for underlying
     thisObject = subscriptions[msg.reqId % 10000000]
     if msg.date[:8] == 'finished':
         callMonitor(msg.reqId, False)
+        if type(thisObject).__name__ == 'stock':
+            findHistoricalVolatility(thisObject)
     else:
         thisObject.historicalData[msg.date] = historicalData(msg.date)
         if 1 == msg.reqId // 10000000:
@@ -286,6 +316,21 @@ def historicalDataHandler(msg):  # reqId is for underlying
         t.volume = msg.volume
         t.count = msg.count
         t.WAP = msg.WAP
+
+
+def findHistoricalVolatility(stockObject):
+    keepGoing = True
+    thisDate = datetime.today()
+    while keepGoing:
+        dateString = thisDate.strftime('%Y%m%d')
+        try:
+            stockObject.historicalVolatility = (stockObject
+                                                .historicalData[dateString]
+                                                .historicalVolatility
+                                                .close)
+            keepGoing = False
+        except KeyError:
+            thisDate = (thisDate - timedelta(days=1))
 
 
 ###############################################################################
@@ -314,20 +359,27 @@ def optionDataProcessor(optionObject):
 ###############################################################################
 
 if __name__ == "__main__":
-    ready()
+ #   ready()
 #    print('Done.')
 #    sleep(8)
 #    woolly()
  #   resetContractDetails(mammoth)
-#    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'TSLA', 'NKE',
-#               'NFLX', 'AAPL']
-#    buildPortfolio(symbols)
-#    initialize()
-#    updateMammoth()
+    symbols = ['BAC', 'AXP', 'GSK']
+#    symbols = ['COF', 'CAT', 'MSFT']
+#    symbols = ['TSLA', 'NKE', 'NFLX', 'AAPL']
+    buildPortfolio(symbols)
+    ready()
+
+    initialize()
+    sleep(3)
     refreshHistoricalData(mammoth)
     while callMonitor():
         sleep(1)
- #   pickler(mammoth, 'portfolio')
+    pickler(mammoth, 'portfolio')
+
+#    initialize()
+#    updateMammoth()
+#    pickler(mammoth, 'portfolio')
 #    initialize()
 #    mammoth = unPickler('portfolio')
  #   for i in mammoth.stocks:
