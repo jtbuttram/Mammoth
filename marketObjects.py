@@ -15,7 +15,7 @@ class portfolio(object):
         self.totalCash = 0
         self.availableFunds = 0
         self.openPositions = []  # open positions
-        self.promoted = []  # highest EV option for each stock
+        self.promoted = []  # key is stock symbol
         self.stocks = []
 
 
@@ -23,6 +23,7 @@ class stock(object):  # what if this class was an extension of a contract?
     def __init__(self, symbol):
         self.portfolio = portfolio()
         self.symbol = symbol.upper()
+        self.objId = -1
         self.position = 0
         self.secType = 'STK'
         self.last = 0
@@ -34,9 +35,9 @@ class stock(object):  # what if this class was an extension of a contract?
         self.impliedVolatility = 0
         self.target = {}
         self.subscribed = False
-        self.subscrIndex = -1
-        self.options = {}
-        self.promoted = ''  # highest EV option for each stock
+        self.cId = -1
+        self.options = []
+        self.promoted = None  # highest EV option for each stock
         self.contract = newContract(self.symbol, 'STK')
         self.industry = None
 
@@ -47,6 +48,7 @@ class option(object):
         self.symbol = symbol.upper()
         self.expiry = expiry
         self.strike = strike
+        self.objId = -1
         self.position = 0
         self.secType = 'OPT'
         self.optType = 'PUT'
@@ -58,7 +60,7 @@ class option(object):
         self.expectedValue = 0
         self.annualizedReturn = 0
         self.subscribed = False
-        self.subscrIndex = -1
+        self.cId = -1
         self.contract = Contract()
 
 
@@ -115,21 +117,25 @@ def newOption(stockObject, contract):
     newOption = option(stockObject.symbol, strike, expiry)
     newOption.underlying = stockObject
     newOption.contract = contract
-    stockObject.options[contract.m_conId] = newOption
-    stockObject.target[expiry] = 0
+    stockObject.options.append(newOption)
+#    stockObject.target[expiry] = 0
     return newOption
 
 
-def newOpenPosition(thisOption):
-    thisPortfolio = thisOption.underlying.portfolio
+def openPosition(thisObject):
+    # promote both stocks and options
+    if thisObject.secType == 'STK':
+        thisPortfolio = thisObject.portfolio
+    elif thisObject.secType == 'OPT':
+        thisPortfolio = thisObject.underlying.portfolio
     dupe = False
     for i in thisPortfolio.openPositions:
-        if i.contract.m_conId == thisOption.contract.m_conId:
-            i = thisOption
+        if i.contract.m_conId == thisObject.contract.m_conId:
+            i = thisObject
             dupe = True
             break
     if not dupe:
-        thisPortfolio.openPositions.append(thisOption)
+        thisPortfolio.openPositions.append(thisObject)
 
 
 def removeExpiredContracts(stockObject):
@@ -149,9 +155,10 @@ def buildPortfolio(symbols):  # symbols is a list of stock symbols
     thisPortfolio = portfolio()
     while symbols:
         newStock(thisPortfolio, symbols.pop())
+    l = len(thisPortfolio.stocks)
     pickler(thisPortfolio, 'portfolio')
 #    return thisPortfolio
-    print('Portfolio built.')
+    print('Portfolio built with %d stocks loaded.') % l
 
 
 def resetContractDetails(portfolioObject):

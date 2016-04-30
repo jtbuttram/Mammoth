@@ -63,25 +63,19 @@ def main():
 
 def initialize():
     global mammoth
-    global subscriptions
-    subscriptions = {}
-    global contracts
-    contracts = {}
-    mammoth = unPickler('portfolio')
-    k = 0
+    global objRef
+    objRef = {}
+    mammoth = unPickler('portfolio')  # try, except then newPortfolio
+    objId = 0
     for i in mammoth.stocks:
-        subscriptions[k] = i
-        i.subscrIndex = k
-        getMarketData(i)
-        k += 1
-        contracts[i.contract.m_conId] = i
+        objRef[objId] = i
+        i.objId = objId
+        objId += 1
         for j in i.options:
-            subscriptions[k] = j
-            j.subscrIndex = k
-#            getMarketData(j)
-            k += 1
-            contracts[j.contract.m_conId] = j
-#    getAccountDetails()
+            objRef[objId] = j
+            j.objId = objId
+            objId += 1
+    getAccountDetails()
 
 
 def ready():
@@ -104,14 +98,8 @@ def updateMammoth():
     for i in mammoth.stocks:
         removeExpiredContracts(i)
         getContractDetails(i)
-#        j = 0
         while callMonitor():
             sleep(1)
-#            if j % 10 == 9:
-#                print('%d calls cooking...') % callMonitor()
-#            else:
-#                print j
-#            j += 1
 
 
 def allMessageHandler(msg):
@@ -165,9 +153,36 @@ def accountDetailsHandler(msg):
 
 def positionsHandler(msg):
     callMonitor(88888888, False)
-    thisOption = contracts[msg.contract.m_conId]
-    thisOption.position = msg.position
-    newOpenPosition(thisOption)
+    symbol = msg.contract.m_symbol
+    conId = msg.contract.m_conId
+    dupe = False
+    for i in mammoth.stocks:
+        if i.symbol == symbol:
+            if msg.contract.m_secType == 'STK':
+                openPosition(i)
+                dupe = True
+            elif msg.contract.m_secType == 'OPT':
+                for j in i.options:
+                    if j.contract.m_conId == conId:
+                        openPosition(i.j)
+                        dupe = True
+                        objRef[len(objRef)] = newOption(i, msg.contract)
+                openPosition(i.options[conId])
+
+            dupe = True
+            break
+    if not dupe:
+        thisStock = newStock(mammoth, symbol)
+        thisStock.objId = len(objRef)
+        objRef[thisStock.objId] = thisStock
+        if msg.contract.m_secType == 'STK':
+            thisStock.contract = msg.contract
+            openPosition(thisStock)
+        elif msg.contract.m_secType == 'OPT':
+            thisOption = newOption(thisStock, msg.contract)
+            thisOption.objId = len(objRef)
+            objRef[thisOption.objId] = thisOption
+            openPosition(thisOption)
 
 
 ###############################################################################
@@ -175,9 +190,28 @@ def positionsHandler(msg):
 ###############################################################################
 
 
+def refreshPortfolio(portfolio, symbols=None):
+    # add input of symbols to remove
+    while symbols:
+        dupe = False
+        symbol = symbols.pop()
+        for i in portfolio.stocks:
+            if i.symbol == symbol:
+                dupe = True
+                break
+        if not dupe:
+            thisStock = newStock(portfolio, symbol)
+            thisStock.objId = len(objRef)
+            objRef[thisStock.objId] = thisStock
+            getContractDetails(thisStock)
+    while callMonitor():
+        sleep(0.1)
+    return thisPortfolio
+
+
 def getContractDetails(stockObject):
     ready()
-    reqId = stockObject.subscrIndex
+    reqId = stockObject.objId
 
     contract = newContract(stockObject.symbol, 'STK')
     callMonitor(reqId + 90000000, True)
@@ -190,30 +224,34 @@ def getContractDetails(stockObject):
 
 def contractDetailsHandler(msg):  # reqId is for underlying stock
     thisContract = msg.contractDetails.m_summary
-    cId = thisContract.m_conId
-    thisStock = subscriptions[msg.reqId % 90000000]
+    refObject = objRef[msg.reqId % 90000000]
+    if refObject.secType == 'STK':
+        thisStock = refObject
+    elif refObject.secType == 'OPT':
+        thisStock = refObject.underlying
     if thisContract.m_conId:
-        if keepContract(thisContract, thisStock):
-            try:  # see if marketObject already exists
-                contracts[cId]
-            except KeyError:  # create new marketObject
-                if thisContract.m_secType == 'OPT':
-                    contracts[cId] = newOption(thisStock, thisContract)
-                elif thisContract.m_secType == 'STK':
-                    thisStock.industry = msg.contractDetails.m_industry
-                    thisStock.contract = thisContract
-        else:
-            try:
-                del thisStock.options[cId]
-                del contracts[cId]
-            except KeyError:
-                pass
+        if thisContract.m_secType == 'STK':
+            thisStock.industry = msg.contractDetails.m_industry
+            thisStock.contract = thisContract
+        elif thisContract.m_secType == 'OPT':
+            if keepContract(thisContract, thisStock):
+                try:  # see if marketObject already exists
+                    thisStock.options[thisContract.m_conId]
+                except KeyError:  # create new marketObject
+                    objRef[len(objRef)] = newOption(thisStock, thisContract)
+            else:
+                try:
+                    oId = thisStock.options[thisContract.m_conId].objId
+                    del thisStock.options[thisContract.m_conId]
+                    del objRef[oId]
+                except KeyError:
+                    pass
 
 
 def keepContract(contract, stockObject):
     dayVol = thisStock.historicalVolatility / math.sqrt(250)
     last = stockObject.last
-    srike = contract.m_strike
+    strike = contract.m_strike
     expiry = dateStringConverver(contract.m_expiry)
     t = weekdaysUntil(expiry)
     tq = math.sqrt(t)
@@ -236,15 +274,14 @@ def contractDetailsEnder(msg):
 def getMarketData(marketObject, subscription=False):
     ready()
     marketObject.subscription = subscription
-    callMonitor(marketObject.subscrIndex, True, timeout=5)
-    con.reqMktData(marketObject.subscrIndex, marketObject.contract, '',
-                   not subscription)
-#    sleep(0.02)  # avoid 100+ simultaneous requests
+    callMonitor(marketObject.objId, True, timeout=5)
+    snapshot = not subscription
+    con.reqMktData(marketObject.objId, marketObject.contract, '', snapshot)
 
 
 def marketDataHandler(msg):
     callMonitor(msg.tickerId, False)
-    thisObject = subscriptions[msg.tickerId]
+    thisObject = objRef[msg.tickerId]
     if msg.field == 1:
         thisObject.bid = msg.price
     elif msg.field == 2:
@@ -288,15 +325,15 @@ def getHistoricalData(contract, whatToShow, reqId):
 
 def refreshHistoricalData(portfolioObject):
     for i in portfolioObject.stocks:
-        getHistoricalData(i.contract, 'TRADES', i.subscrIndex + 10000000)
+        getHistoricalData(i.contract, 'TRADES', i.objId + 10000000)
         getHistoricalData(i.contract, 'HISTORICAL_VOLATILITY',
-                          i.subscrIndex + 60000000)
+                          i.objId + 60000000)
         getHistoricalData(i.contract, 'OPTION_IMPLIED_VOLATILITY',
-                          i.subscrIndex + 70000000)
+                          i.objId + 70000000)
 
 
 def historicalDataHandler(msg):  # reqId is for underlying
-    thisObject = subscriptions[msg.reqId % 10000000]
+    thisObject = objRef[msg.reqId % 10000000]
     if msg.date[:8] == 'finished':
         callMonitor(msg.reqId, False)
         if type(thisObject).__name__ == 'stock':
@@ -364,13 +401,13 @@ if __name__ == "__main__":
 #    sleep(8)
 #    woolly()
  #   resetContractDetails(mammoth)
-    symbols = ['BAC', 'AXP', 'GSK']
+    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT']
 #    symbols = ['COF', 'CAT', 'MSFT']
 #    symbols = ['TSLA', 'NKE', 'NFLX', 'AAPL']
     buildPortfolio(symbols)
     ready()
 
-    initialize()
+#    initialize()
     sleep(3)
     refreshHistoricalData(mammoth)
     while callMonitor():
