@@ -8,7 +8,7 @@ from time import sleep
 from calendar import weekday
 from brain import newTarget, optionValue
 import math
-from apiConnection import getAccountDetails, getHistoricalData, getMarketData, getOptionDetails, getStockDetails
+from apiConnection import makeReservation, nextReservation, disconnect, callMonitor
 
 
 '''
@@ -42,23 +42,26 @@ ACCEPTANCE CRITERIA
     * strike near last (w/n annualized volatility from historical data)
     * expiry w/n 40 weekdays
 * pull in history when initializing (but only if not up to date)
+* try again on timeouts
+* scan portfolio frequently and update active contracts to monitor
+* update positions and activity
 -------------------------------------------------------------------------------
 '''
 
 
 def main():
-    global con
-    con = ibConnection(port=7496, clientId=1618)
-    # 7496 for real account, 7497 for paper trader
-    con.registerAll(allMessageHandler)
-    con.register(accountDetailsHandler, 'UpdateAccountValue')
-    con.register(positionsHandler, 'UpdatePortfolio')
-#    con.register(portfolioDetailsHandler, 'UpdateAccountTime')
-    con.register(marketDataHandler, message.tickPrice)
-    con.register(contractDetailsHandler, 'ContractDetails')
-    con.register(contractDetailsEnder, 'ContractDetailsEnd')
-    con.register(historicalDataHandler, message.historicalData)
-    con.connect()
+    timeout = timedelta(minutes=10)
+    ready()
+    while True:
+        while datetime.now() < lastActive + timeout:
+            ready()
+            nextReservation()
+#            sleep(0.1)
+        disconnect()
+        pickler(mammoth, 'portfolio')
+        if weekday(datetime.today()) == 4:
+            updateMammoth()
+        sleep(secondsTilOpen()-540)  # wake up 9 minutes before trading
 
 
 def initialize():
@@ -75,51 +78,34 @@ def initialize():
             objRef[objId] = j
             j.objId = objId
             objId += 1
-    getAccountDetails()
+    makeReservation('accountDetails')
+
+
+def reset():
+    pass
 
 
 def ready():
     try:
-        con
-    except NameError:
-        main()
-    if not con.m_connected:
-        main()
-    try:
         mammoth
     except NameError:
         initialize()
-    global lastMsg
-    lastMsg = datetime.now()
+    lastActivity()
 
 
 def updateMammoth():
     ready()
     for i in mammoth.stocks:
         removeExpiredContracts(i)
-        getContractDetails(i)
-        while callMonitor():
-            sleep(1)
+        makeReservation('stockDetails', i)
+        makeReservation('historicalData', i)
+        makeReservation('optionDetails', i)
 
 
-def allMessageHandler(msg):
-    global lastMsg
-    lastMsg = datetime.now()
+def lastActivity():
+    global lastActive
+    lastActive = datetime.now()
 #    print(msg)
-
-
-def woolly():
-    timeOut = datetime.timedelta(minutes=10)
-    ready()
-    while True:
-        while datetime.now() < lastMsg + timeOut:
-            ready()
-            sleep(60)
-        con.disconnect()
-        pickler(mammoth, 'portfolio')
-        if weekday(t.today()) == 4:
-            updateMammoth()
-        sleep(secondsTilOpen()-540)  # wake up 9 minutes before trading
 
 
 ###############################################################################
@@ -132,119 +118,105 @@ def updateAccountDetails(attribute, value):
     exec(eString)
 
 
-def updatePositions(contract, symbol, conId):
-    dupe = False
-    for i in mammoth.stocks:
-        if i.symbol == symbol:
-            if contract.m_secType == 'STK':
-                openPosition(i)
+def updatePositions(openPositions):
+    i = 0
+    while i < len(mammoth.openPositions):
+        dupe = False
+        j = 0
+        while j < len(openPositions):
+            if mammoth.openPositions[i].contract.m_conId == openPositions[j].contract.m_conId:
+                mammoth.openPositions[i].contract = openPositions[j].contract
+                mammoth.openPositions[i].position = openPositions[j].position
+                openPositions.pop(j)
                 dupe = True
-            elif contract.m_secType == 'OPT':
-                for j in i.options:
-                    if j.contract.m_conId == conId:
-                        openPosition(i.j)
-                        dupe = True
-                        objRef[len(objRef)] = newOption(i, contract)
-                openPosition(i.options[conId])
-            dupe = True
-            break
-    if not dupe:
-        thisStock = newStock(mammoth, symbol)
-        thisStock.objId = len(objRef)
-        objRef[thisStock.objId] = thisStock
-        if contract.m_secType == 'STK':
-            thisStock.contract = contract
-            openPosition(thisStock)
-        elif contract.m_secType == 'OPT':
-            thisOption = newOption(thisStock, contract)
+                break
+            else:
+                j += 1
+        if not dupe:
+            mammoth.openPositions[i].position = 0
+            mammoth.openPositions.pop(i)
+        else:
+            i += 1
+    for k in openPositions:
+        sDupe = False
+        oDupe = False
+        for i in mammoth.stocks:
+            if i.symbol == k.symbol:
+                if k.secType == 'STK':
+                    i.position = k.position
+                    i.contract = k.contract
+                    mammoth.openPositions.append(i)
+                    sDupe = True
+                    break
+                elif k.secType == 'OPT':
+                    for j in i.options:
+                        if j.contract.m_conId == k.contract.m_conId:
+                            j.position = k.position
+                            j.active = True
+                            j.contract = k.contract
+                            mammoth.openPositions.append(j)
+                            oDupe = True
+                            break
+        if not sDupe:
+            thisStock = newStock(mammoth, k.symbol)
+            thisStock.objId = len(objRef)
+            objRef[thisStock.objId] = thisStock
+            thisStock.position = k.position
+            thisStock.contract = k.contract
+            mammoth.openPositions.append(thisStock)
+            makeReservation('stockDetails', thisStock)
+            makeReservation('historicalData', thisStock)
+            makeReservation('optionDetails', thisStock)
+        if not oDupe:
+            for i in mammoth.stocks:
+                if i.symbol == k.symbol:
+                    thisStock = i
+            thisOption = newOption(thisStock, k.contract)
             thisOption.objId = len(objRef)
             objRef[thisOption.objId] = thisOption
-            openPosition(thisOption)
-
+            thisOption.position = k.position
+            thisOption.contract = k.contract
+            mammoth.openPositions.append(thisOption)
 
 ###############################################################################
 #   CONTRACT DATA
 ###############################################################################
 
 
-def refreshPortfolio(portfolio, symbols=None):
-    # add input of symbols to remove
-    while symbols:
+def updateStockDetails(objId, contract, industry):
+    thisStock = objRef[objId]
+    thisStock.contract = contract
+    thisStock.industry = industry
+
+
+def updateOptionDetails(objId, contract):
+    thisStock = objRef[objId]
+    if contract.m_conId:
         dupe = False
-        symbol = symbols.pop()
-        for i in portfolio.stocks:
-            if i.symbol == symbol:
+        for i in thisStock.options:
+            if i.contract.m_conId == contract.m_conId:
+                thisOption = i
                 dupe = True
                 break
         if not dupe:
-            thisStock = newStock(portfolio, symbol)
-            thisStock.objId = len(objRef)
-            objRef[thisStock.objId] = thisStock
-            reqId = thisStock.objId
-            callMonitor(reqId + 90000000, True)
-            con.reqContractDetails(reqId + 90000000, stockObject.contract)
-    while callMonitor():
-        sleep(0.1)
-    return thisPortfolio
+            thisOption = newOption(thisStock, contract)
+            thisOption.objId = len(objRef)
+            objRef[thisOption.objId] = thisOption
+        thisOption.active = activeContract(contract, thisStock)
 
 
-def getStockDetails(stockObject):
-    ready()
-    reqId = stockObject.objId
-    callMonitor(reqId + 90000000, True)
-    con.reqContractDetails(reqId + 90000000, stockObject.contract)
-
-
-def getOptionDetails(stockObject):
-    ready()
-    reqId = stockObject.objId
-    contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
-    callMonitor(reqId, True)
-    con.reqContractDetails(reqId, contract)
-
-
-def contractDetailsHandler(msg):  # reqId is for underlying stock
-    thisContract = msg.contractDetails.m_summary
-    refObject = objRef[msg.reqId % 90000000]
-    if refObject.secType == 'STK':
-        thisStock = refObject
-    elif refObject.secType == 'OPT':
-        thisStock = refObject.underlying
-    if thisContract.m_conId:
-        if thisContract.m_secType == 'STK':
-            thisStock.industry = msg.contractDetails.m_industry
-            thisStock.contract = thisContract
-        elif thisContract.m_secType == 'OPT':
-            if keepContract(thisContract, thisStock):
-                try:  # see if marketObject already exists
-                    thisStock.options[thisContract.m_conId]
-                except KeyError:  # create new marketObject
-                    objRef[len(objRef)] = newOption(thisStock, thisContract)
-            else:
-                try:
-                    oId = thisStock.options[thisContract.m_conId].objId
-                    del thisStock.options[thisContract.m_conId]
-                    del objRef[oId]
-                except KeyError:
-                    pass
-
-
-def keepContract(contract, stockObject):
-    dayVol = thisStock.historicalVolatility / math.sqrt(250)
+def activeContract(contract, stockObject):
+    dayVol = stockObject.historicalVolatility / math.sqrt(250)
     last = stockObject.last
     strike = contract.m_strike
-    expiry = dateStringConverver(contract.m_expiry)
+    expiry = dateStringConverter(contract.m_expiry)
     t = weekdaysUntil(expiry)
     tq = math.sqrt(t)
     tooHigh = (strike > last * (1 + dayVol * tq * 2))
     tooLow = (strike < last * (1 - dayVol * tq * 2))
     tooFar = (t > 40)
-    keepIt = (not tooHigh) and (not tooLow) and (not tooFar)
-    return keepIt
-
-
-def contractDetailsEnder(msg):
-    callMonitor(msg.reqId, False)
+    active = (not tooHigh) and (not tooLow) and (not tooFar)
+    return active
 
 
 ###############################################################################
@@ -252,29 +224,10 @@ def contractDetailsEnder(msg):
 ###############################################################################
 
 
-def getMarketData(marketObject, subscription=False):
-    ready()
-    marketObject.subscription = subscription
-    callMonitor(marketObject.objId, True, timeout=5)
-    snapshot = not subscription
-    con.reqMktData(marketObject.objId, marketObject.contract, '', snapshot)
-
-
-def marketDataHandler(msg):
-    callMonitor(msg.tickerId, False)
-    thisObject = objRef[msg.tickerId]
-    if msg.field == 1:
-        thisObject.bid = msg.price
-    elif msg.field == 2:
-        thisObject.ask = msg.price
-    elif msg.field == 4:
-        thisObject.last = msg.price
-    elif msg.field == 6:
-        pass  # thisObject.high = msg.price
-    elif msg.field == 7:
-        pass  # thisObject.low = msg.price
-    elif msg.field == 9:
-        thisObject.close = msg.price
+def updateMarketData(objId, attribute, value):
+    thisObject = objRef[objId]
+    eString = 'thisObject%s = value' % attribute
+    exec(eString)
     if thisObject.secType == 'STK':
         stockDataProcessor(thisObject)
     elif thisObject.secType == 'OPT':
@@ -286,54 +239,18 @@ def marketDataHandler(msg):
 ###############################################################################
 
 
-def getHistoricalData(contract, whatToShow, reqId):
-    ready()
-#    https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
-    tickerId = reqId
-    endDateTime = datetimeConverver()
-#    endDateTime = datetime.today().strftime("%Y%m%d %H:%M:%S %Z")
-    durationStr = "5 D"
-    barSizeSetting = "1 day"
-#    whatToShow = ['TRADES', 'MIDPOINT', 'BID', 'ASK', 'BID_ASK',
-#                  'HISTORICAL_VOLATILITY', 'OPTION_IMPLIED_VOLATILITY']
-    useRTH = 1
-    formatDate = 1
-#    chartOptions = None
-    callMonitor(reqId, True, timeout=5)
-    con.reqHistoricalData(tickerId, contract, endDateTime, durationStr,
-                          barSizeSetting, whatToShow, useRTH, formatDate)
-
-
 def refreshHistoricalData(portfolioObject):
     for i in portfolioObject.stocks:
-        getHistoricalData(i.contract, 'TRADES', i.objId + 10000000)
-        getHistoricalData(i.contract, 'HISTORICAL_VOLATILITY',
-                          i.objId + 60000000)
-        getHistoricalData(i.contract, 'OPTION_IMPLIED_VOLATILITY',
-                          i.objId + 70000000)
+        makeReservation('historicalData',i)
 
 
-def historicalDataHandler(msg):  # reqId is for underlying
-    thisObject = objRef[msg.reqId % 10000000]
-    if msg.date[:8] == 'finished':
-        callMonitor(msg.reqId, False)
-        if type(thisObject).__name__ == 'stock':
-            findHistoricalVolatility(thisObject)
-    else:
-        thisObject.historicalData[msg.date] = historicalData(msg.date)
-        if 1 == msg.reqId // 10000000:
-            t = thisObject.historicalData[msg.date].trades
-        elif 6 == msg.reqId // 10000000:
-            t = thisObject.historicalData[msg.date].historicalVolatility
-        elif 7 == msg.reqId // 10000000:
-            t = thisObject.historicalData[msg.date].impliedVolatility
-        t.open = msg.open
-        t.high = msg.high
-        t.low = msg.low
-        t.close = msg.close
-        t.volume = msg.volume
-        t.count = msg.count
-        t.WAP = msg.WAP
+def updateHistoricalData(objId, date, dataType, data):  # reqId is for underlying
+    thisObject = objRef[objId]
+    try:
+        thisObject.historicalData[date]
+    except NameError:
+        thisObject.historicalData[date] = historicalData(date)
+        exec('thisObject.historicalData[date]%s = data') % dataType
 
 
 def findHistoricalVolatility(stockObject):

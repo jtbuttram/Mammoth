@@ -1,6 +1,7 @@
 from ib.opt import ibConnection, message
-from logicTools import callMonitor
-from mammoth import updateAccountDetails updatePositions
+from datetime import datetime, timedelta
+from marketObjects import stock, option, dataFormat
+from mammoth import lastActivity, updateAccountDetails, updatePositions, updateStockDetails, updateOptionDetails, updateMarketData, updateHistoricalData
 
 
 def main():
@@ -10,11 +11,16 @@ def main():
     con.registerAll(allMessageHandler)
     con.register(accountDetailsHandler, 'UpdateAccountValue')
     con.register(positionsHandler, 'UpdatePortfolio')
+    con.register(accountDetailsEnder, 'AccountDownloadEnd')
     con.register(marketDataHandler, message.tickPrice)
     con.register(contractDetailsHandler, 'ContractDetails')
     con.register(contractDetailsEnder, 'ContractDetailsEnd')
     con.register(historicalDataHandler, message.historicalData)
     con.connect()
+
+
+def disconnect():
+    con.disconnect()
 
 
 def __init__():
@@ -31,9 +37,8 @@ def check():
 
 
 def allMessageHandler(msg):
-    global lastMsg
-    lastMsg = datetime.now()
 #    print(msg)
+    lastActivity()
 
 
 ###############################################################################
@@ -44,12 +49,10 @@ def allMessageHandler(msg):
 def getAccountDetails():
     check()
     callMonitor(88888888, True)
-    callMonitor(88888889, True)
     con.reqAccountUpdates(False, 'U1385930')
 
 
 def accountDetailsHandler(msg):
-    callMonitor(88888888, False)
     if msg.key == 'CashBalance' and msg.currency == 'USD':
         attribute = '.cashBalance'
     elif msg.key == 'AvailableFunds' and msg.currency == 'USD':
@@ -71,9 +74,25 @@ def accountDetailsHandler(msg):
 
 
 def positionsHandler(msg):
-    callMonitor(88888889, False)
-    contract = msg.contract
-    updatePositions(contract, msg.contract.m_symbol, msg.contract.m_conId)
+    global opens
+    try:
+        opens
+    except NameError:
+        opens = []
+    if msg.contract.m_secType == 'STK':
+        thisObject = stock(msg.contract.m_symbol)
+    elif msg.contract.m_secType == 'OPT':
+        thisObject = option(msg.contract.m_symbol, msg.contract.m_strike, msg.contract.m_expiry)
+    thisObject.contract = msg.contract
+    thisObject.position = msg.position
+    opens.append(thisObject)
+
+
+def accountDetailsEnder():
+    callMonitor(88888888, False)
+    updatePositions(opens)
+    del opens
+
 
 
 ###############################################################################
@@ -81,36 +100,15 @@ def positionsHandler(msg):
 ###############################################################################
 
 
-def refreshPortfolio(portfolio, symbols=None):
-    # add input of symbols to remove
-    while symbols:
-        dupe = False
-        symbol = symbols.pop()
-        for i in portfolio.stocks:
-            if i.symbol == symbol:
-                dupe = True
-                break
-        if not dupe:
-            thisStock = newStock(portfolio, symbol)
-            thisStock.objId = len(objRef)
-            objRef[thisStock.objId] = thisStock
-            reqId = thisStock.objId
-            callMonitor(reqId + 90000000, True)
-            con.reqContractDetails(reqId + 90000000, stockObject.contract)
-    while callMonitor():
-        sleep(0.1)
-    return thisPortfolio
-
-
 def getStockDetails(stockObject):
-    ready()
+    check()
     reqId = stockObject.objId
-    callMonitor(reqId + 90000000, True)
-    con.reqContractDetails(reqId + 90000000, stockObject.contract)
+    callMonitor(reqId, True)
+    con.reqContractDetails(reqId, stockObject.contract)
 
 
 def getOptionDetails(stockObject):
-    ready()
+    check()
     reqId = stockObject.objId
     contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
     callMonitor(reqId, True)
@@ -119,28 +117,10 @@ def getOptionDetails(stockObject):
 
 def contractDetailsHandler(msg):  # reqId is for underlying stock
     thisContract = msg.contractDetails.m_summary
-    refObject = objRef[msg.reqId % 90000000]
-    if refObject.secType == 'STK':
-        thisStock = refObject
-    elif refObject.secType == 'OPT':
-        thisStock = refObject.underlying
-    if thisContract.m_conId:
-        if thisContract.m_secType == 'STK':
-            thisStock.industry = msg.contractDetails.m_industry
-            thisStock.contract = thisContract
-        elif thisContract.m_secType == 'OPT':
-            if keepContract(thisContract, thisStock):
-                try:  # see if marketObject already exists
-                    thisStock.options[thisContract.m_conId]
-                except KeyError:  # create new marketObject
-                    objRef[len(objRef)] = newOption(thisStock, thisContract)
-            else:
-                try:
-                    oId = thisStock.options[thisContract.m_conId].objId
-                    del thisStock.options[thisContract.m_conId]
-                    del objRef[oId]
-                except KeyError:
-                    pass
+    if thisContract.m_secType == 'STK':
+        updateStockDetails(msg.reqId, thisContract, msg.contractDetails.m_industry)
+    elif thisContract.m_secType == 'OPT':
+        updateOptionDetails(msg.reqId, thisContract)
 
 
 def contractDetailsEnder(msg):
@@ -153,10 +133,10 @@ def contractDetailsEnder(msg):
 
 
 def getMarketData(marketObject, subscription=False):
-    ready()
+    check()
     marketObject.subscription = subscription
-    callMonitor(marketObject.objId, True, timeout=5)
     snapshot = not subscription
+    callMonitor(marketObject.objId, True, timeout=5)
     con.reqMktData(marketObject.objId, marketObject.contract, '', snapshot)
 
 
@@ -164,21 +144,26 @@ def marketDataHandler(msg):
     callMonitor(msg.tickerId, False)
     thisObject = objRef[msg.tickerId]
     if msg.field == 1:
-        thisObject.bid = msg.price
+        attribute = '.bid'
+        value = msg.price
     elif msg.field == 2:
-        thisObject.ask = msg.price
+        attribute = '.ask'
+        value = msg.price
     elif msg.field == 4:
-        thisObject.last = msg.price
+        attribute = '.last'
+        value = msg.price
     elif msg.field == 6:
-        pass  # thisObject.high = msg.price
+        pass
+#        attribute = '.high'
+#        value = msg.price
     elif msg.field == 7:
-        pass  # thisObject.low = msg.price
+        pass
+#        attribute = '.low'
+#        value = msg.price
     elif msg.field == 9:
-        thisObject.close = msg.price
-    if thisObject.secType == 'STK':
-        stockDataProcessor(thisObject)
-    elif thisObject.secType == 'OPT':
-        optionDataProcessor(thisObject)
+        attribute = '.close'
+        value = msg.price
+    updateMarketData(msg.tickerId, attribute, value)
 
 
 ###############################################################################
@@ -186,66 +171,139 @@ def marketDataHandler(msg):
 ###############################################################################
 
 
-def getHistoricalData(contract, whatToShow, reqId):
-    ready()
-#    https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
-    tickerId = reqId
-    endDateTime = datetimeConverver()
-#    endDateTime = datetime.today().strftime("%Y%m%d %H:%M:%S %Z")
-    durationStr = "5 D"
-    barSizeSetting = "1 day"
-#    whatToShow = ['TRADES', 'MIDPOINT', 'BID', 'ASK', 'BID_ASK',
-#                  'HISTORICAL_VOLATILITY', 'OPTION_IMPLIED_VOLATILITY']
+def getHistoricalData(marketObject):
+    check()
+    contract = marketObject.contract
+    durationStr = '5 D'
+    barSizeSetting = '1 day'
     useRTH = 1
     formatDate = 1
-#    chartOptions = None
+    endDateTime = datetimeConverver()
+
+    whatToShow = 'TRADES'
+    reqId = marketObject.objId + 10000000
     callMonitor(reqId, True, timeout=5)
-    con.reqHistoricalData(tickerId, contract, endDateTime, durationStr,
-                          barSizeSetting, whatToShow, useRTH, formatDate)
+    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate)
 
+    whatToShow = 'HISTORICAL_VOLATILITY'
+    reqId = marketObject.objId + 60000000
+    callMonitor(reqId, True, timeout=5)
+    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate)
 
-def refreshHistoricalData(portfolioObject):
-    for i in portfolioObject.stocks:
-        getHistoricalData(i.contract, 'TRADES', i.objId + 10000000)
-        getHistoricalData(i.contract, 'HISTORICAL_VOLATILITY',
-                          i.objId + 60000000)
-        getHistoricalData(i.contract, 'OPTION_IMPLIED_VOLATILITY',
-                          i.objId + 70000000)
+    whatToShow = 'OPTION_IMPLIED_VOLATILITY'
+    reqId = marketObject.objId + 70000000
+    callMonitor(reqId, True, timeout=5)
+    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate)
 
 
 def historicalDataHandler(msg):  # reqId is for underlying
-    thisObject = objRef[msg.reqId % 10000000]
+    objId = msg.reqId % 10000000
     if msg.date[:8] == 'finished':
         callMonitor(msg.reqId, False)
-        if type(thisObject).__name__ == 'stock':
-            findHistoricalVolatility(thisObject)
     else:
-        thisObject.historicalData[msg.date] = historicalData(msg.date)
+        thisData = dataFormat()
+        date = msg.date
         if 1 == msg.reqId // 10000000:
-            t = thisObject.historicalData[msg.date].trades
+            dataType = '.trades'
         elif 6 == msg.reqId // 10000000:
-            t = thisObject.historicalData[msg.date].historicalVolatility
+            dataType = '.historicalVolatility'
         elif 7 == msg.reqId // 10000000:
-            t = thisObject.historicalData[msg.date].impliedVolatility
-        t.open = msg.open
-        t.high = msg.high
-        t.low = msg.low
-        t.close = msg.close
-        t.volume = msg.volume
-        t.count = msg.count
-        t.WAP = msg.WAP
+            dataType = '.impliedVolatility'
+        thisData.open = msg.open
+        thisData.high = msg.high
+        thisData.low = msg.low
+        thisData.close = msg.close
+        thisData.volume = msg.volume
+        thisData.count = msg.count
+        thisData.WAP = msg.WAP
+    updateHistoricalData(objId, date, dataType, thisData)
 
 
-def findHistoricalVolatility(stockObject):
-    keepGoing = True
-    thisDate = datetime.today()
-    while keepGoing:
-        dateString = thisDate.strftime('%Y%m%d')
-        try:
-            stockObject.historicalVolatility = (stockObject
-                                                .historicalData[dateString]
-                                                .historicalVolatility
-                                                .close)
-            keepGoing = False
-        except KeyError:
-            thisDate = (thisDate - timedelta(days=1))
+###############################################################################
+#   CALL MANAGEMENT
+###############################################################################
+
+
+class reservation(object):
+    def __init__(self, callType, marketObject, time):
+        self.callType = callType
+        self.marketObject = marketObject
+        self.time = time
+        self.objId = marketObject.objId
+
+
+def makeReservation(callType, marketObject=None, delay=0):
+    global reservations
+    try:
+        reservations
+    except NameError:
+        reservations = []
+    time = datetime.now() + timedelta(seconds=delay)
+    thisReservation = reservation(callType, marketObject, time)
+    j = 0
+    for i in reservations:
+        j += 1
+        if time > i.time:
+            j -= 1
+            break
+    reservations.insert(j,thisReservation)
+
+
+def nextReservation():
+    i = len(reservations) - 1
+    while True:
+        if callMonitor(reservations[i].objId):
+            thisReservation = reservations.pop(i)
+            break
+        else:
+            i -= 1
+            if i < 0:
+                i = len(reservations) - 1
+    if thisReservation.callType == 'accountDetails':
+        getAccountDetails()
+    if thisReservation.callType == 'stockDetails':
+        getStockDetails(thisReservation.marketObject)
+    if thisReservation.callType == 'optionDetails':
+        getOptionDetails(thisReservation.marketObject)
+    if thisReservation.callType == 'marketData':
+        getMarketData(thisReservation.marketObject)
+    if thisReservation.callType == 'historicalData':
+        getHistoricalData(thisReservation.marketObject)
+
+
+def callMonitor(callId=None, monitorCall=True, timeout=100):
+    # leave callId blank to return number of outstanding calls
+    timeOut = timedelta(seconds=timeout)
+    global cooker
+    try:
+        cooker
+    except NameError:
+        cooker = {}
+    trash = []
+    for k, v in cooker.iteritems():
+        if v < datetime.now() - timeOut:
+            trash.append(k)
+            print('callId %d timed out after %d seconds') % (k, timeout)
+    while trash:
+        del cooker[trash.pop()]
+    if callId is not None:
+        if not monitorCall:
+            try:
+                elapsed = (datetime.now() - cooker[callId]).microseconds / 1000
+                del cooker[callId]
+                print('resolved callId %d in %d ms') % (callId, elapsed)
+            except KeyError:
+                pass
+        else:
+            while len(cooker) >= 100:
+                sleep(0.1)
+                print('waiting to add callId %d') % callId
+            try:
+                if cooker[callId]:
+                    return False
+            except KeyError:
+                cooker[callId] = datetime.now()
+                print('monitoring callId %d') % callId
+                return True
+    else:
+        return len(cooker)

@@ -21,7 +21,7 @@ class portfolio(object):
 
 class stock(object):  # what if this class was an extension of a contract?
     def __init__(self, symbol):
-        self.portfolio = portfolio()
+        self.portfolio = None
         self.symbol = symbol.upper()
         self.objId = -1
         self.position = 0
@@ -35,7 +35,6 @@ class stock(object):  # what if this class was an extension of a contract?
         self.impliedVolatility = 0
         self.target = {}
         self.subscribed = False
-        self.cId = -1
         self.options = []
         self.promoted = None  # highest EV option for each stock
         self.contract = newContract(self.symbol, 'STK')
@@ -50,6 +49,7 @@ class option(object):
         self.strike = strike
         self.objId = -1
         self.position = 0
+        self.active = False
         self.secType = 'OPT'
         self.optType = 'PUT'
         self.last = 0
@@ -60,8 +60,7 @@ class option(object):
         self.expectedValue = 0
         self.annualizedReturn = 0
         self.subscribed = False
-        self.cId = -1
-        self.contract = Contract()
+        self.contract = None
 
 
 class dataFormat(object):

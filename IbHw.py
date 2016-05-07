@@ -88,7 +88,7 @@ def marketDataHandler(msg):
     print(msg.typeName)
 
 if __name__ == "__main__":
-
+#    makeReservation('accountDetails')
     main()
     con.reqAccountUpdates(True, 'U1385930')
 #    sleep(8)
@@ -105,7 +105,7 @@ if __name__ == "__main__":
 #    getHistorialData(thisContract, 'TRADES', 1)
 #    sleep(3)
  #   getHistorialData(thisContract, 'HISTORICAL_VOLATILITY', 6)
-    sleep(3)
+    sleep(8)
 #    getHistorialData(thisContract, 'OPTION_IMPLIED_VOLATILITY', 7)
 #    sleep(3)
 #    sleep(5)
