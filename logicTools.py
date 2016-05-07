@@ -16,7 +16,7 @@ def isWeekday(addDays=0):
 def datetimeConverver(date='today'):
     if date == 'today':
         date = datetime.today()
-    dateString = date.strftime('%Y%m%d')
+    dateString = date.strftime('%Y%m%d %H:%M:%S %Z')
     return dateString
 
 
@@ -73,9 +73,6 @@ def callMonitor(callId=None, monitorCall=True, timeout=100):
             cooker
         except NameError:
             cooker = {}
-#        if not cooker:
-#            cooker[-1] = datetime.now() - timeOut
-#        while cooker:
         if not monitorCall:
             try:
                 elapsed = (datetime.now() - cooker[callId]).microseconds / 1000
@@ -85,10 +82,14 @@ def callMonitor(callId=None, monitorCall=True, timeout=100):
                 pass
         else:
             while len(cooker) >= 100:
-                sleep(1)
+                sleep(0.1)
                 print('trying to add callId %d') % callId
-            cooker[callId] = datetime.now()
-            print('monitoring callId %d') % callId
+            try:
+                while cooker[callId]:
+                    sleep(0.1)
+            except KeyError:
+                cooker[callId] = datetime.now()
+                print('monitoring callId %d') % callId
             trash = []
             for k, v in cooker.iteritems():
                 if v < datetime.now() - timeOut:
@@ -104,6 +105,7 @@ def callMonitor(callId=None, monitorCall=True, timeout=100):
         for k, v in cooker.iteritems():
             if v < datetime.now() - timeOut:
                 trash.append(k)
+                print('callId %d timed out after %d seconds') % (k, timeout)
         while trash:
             del cooker[trash.pop()]
         return len(cooker)

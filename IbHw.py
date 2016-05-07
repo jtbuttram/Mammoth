@@ -90,9 +90,9 @@ def marketDataHandler(msg):
 if __name__ == "__main__":
 
     main()
-#    con.reqAccountUpdates(True, 'U1385930')
+    con.reqAccountUpdates(True, 'U1385930')
 #    sleep(8)
-    thisContract = newContract('LVLT', 'STK')
+#    thisContract = newContract('LVLT', 'STK')
 #   thisContract = newContract('LVLT', 'OPT', expiry='20160520', opt_type='PUT')
 #    trdList = []
 #    hisVolList = []
@@ -104,7 +104,7 @@ if __name__ == "__main__":
 #    getContractDetails(thisContract)
 #    getHistorialData(thisContract, 'TRADES', 1)
 #    sleep(3)
-    getHistorialData(thisContract, 'HISTORICAL_VOLATILITY', 6)
+ #   getHistorialData(thisContract, 'HISTORICAL_VOLATILITY', 6)
     sleep(3)
 #    getHistorialData(thisContract, 'OPTION_IMPLIED_VOLATILITY', 7)
 #    sleep(3)

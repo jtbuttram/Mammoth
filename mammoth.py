@@ -129,6 +129,7 @@ def woolly():
 
 def getAccountDetails():
     callMonitor(88888888, True)
+    callMonitor(88888889, True)
     con.reqAccountUpdates(False, 'U1385930')
 
 
@@ -149,10 +150,11 @@ def accountDetailsHandler(msg):
         mammoth.realizedPnL = msg.value
     elif msg.key == 'UnrealizedPnL' and msg.currency == 'USD':
         mammoth.unrealizedPnL = msg.value
+    callMonitor(88888888, False)
 
 
 def positionsHandler(msg):
-    callMonitor(88888888, False)
+    callMonitor(88888889, False)
     symbol = msg.contract.m_symbol
     conId = msg.contract.m_conId
     dupe = False
@@ -203,20 +205,24 @@ def refreshPortfolio(portfolio, symbols=None):
             thisStock = newStock(portfolio, symbol)
             thisStock.objId = len(objRef)
             objRef[thisStock.objId] = thisStock
-            getContractDetails(thisStock)
+            reqId = thisStock.objId
+            callMonitor(reqId + 90000000, True)
+            con.reqContractDetails(reqId + 90000000, stockObject.contract)
     while callMonitor():
         sleep(0.1)
     return thisPortfolio
 
 
-def getContractDetails(stockObject):
+def getStockDetails(stockObject):
     ready()
     reqId = stockObject.objId
-
-    contract = newContract(stockObject.symbol, 'STK')
     callMonitor(reqId + 90000000, True)
-    con.reqContractDetails(reqId + 90000000, contract)
+    con.reqContractDetails(reqId + 90000000, stockObject.contract)
 
+
+def getOptionDetails(stockObject):
+    ready()
+    reqId = stockObject.objId
     contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
     callMonitor(reqId, True)
     con.reqContractDetails(reqId, contract)
@@ -318,7 +324,7 @@ def getHistoricalData(contract, whatToShow, reqId):
     useRTH = 1
     formatDate = 1
 #    chartOptions = None
-    callMonitor(reqId, True)
+    callMonitor(reqId, True, timeout=5)
     con.reqHistoricalData(tickerId, contract, endDateTime, durationStr,
                           barSizeSetting, whatToShow, useRTH, formatDate)
 
@@ -401,17 +407,21 @@ if __name__ == "__main__":
 #    sleep(8)
 #    woolly()
  #   resetContractDetails(mammoth)
-    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT']
+    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'AAPL']
 #    symbols = ['COF', 'CAT', 'MSFT']
 #    symbols = ['TSLA', 'NKE', 'NFLX', 'AAPL']
     buildPortfolio(symbols)
     ready()
+    for i in mammoth.stocks:
+        getStockDetails(i)
+    while callMonitor():
+        sleep(0.1)
 
 #    initialize()
-    sleep(3)
+#    sleep(3)
     refreshHistoricalData(mammoth)
     while callMonitor():
-        sleep(1)
+        sleep(0.1)
     pickler(mammoth, 'portfolio')
 
 #    initialize()
