@@ -1,49 +1,6 @@
-from ib.ext.Contract import Contract
 from ib.opt import ibConnection, message
-from marketObjects import *
-from dataTools import pickler, unPickler
-from logicTools import *
-from datetime import datetime, timedelta
-from time import sleep
-from calendar import weekday
-from brain import newTarget, optionValue
-import math
-from apiConnection import getAccountDetails, getHistoricalData, getMarketData, getOptionDetails, getStockDetails
-
-
-'''
-ACCEPTANCE CRITERIA
--------------------------------------------------------------------------------
-* iterate through marketObjects according to likelihood of a trade
-* never subscribe to anything
-* if connection is lost, reconnect and re-subscribe to everything
-* at portfolio level:
-    * track positions
-    * track available funds
-    * cap leverage
-* as quotes come in:
-    * adjust check-in frequency
-        * add to a queue after a variable amount of time
-        * the most competitive objects get added back to queue immediately?
-        * every option gets checked at least once each hour
-        * every stock gets checked at least once each minute
-    * calculate value of each option
-    * calculate expected return of each option
-    * when best expected return for a stock changes, promote that option
-* when an option is promoted:
-    * compare all promoted options
-    * trade to optimize return, including cost of trades
-    * avoid day trades
-    * limit two positions per industry
-* limit program to 100 outstanding requests
-    * global variable and function to interact with it
-        * function returns true if ok to submit requests
-* only store contract details for imminently relevant options
-    * strike near last (w/n annualized volatility from historical data)
-    * expiry w/n 40 weekdays
-* pull in history when initializing (but only if not up to date)
--------------------------------------------------------------------------------
-'''
+from logicTools import callMonitor
+from mammoth import updateAccountDetails updatePositions
 
 
 def main():
@@ -53,7 +10,6 @@ def main():
     con.registerAll(allMessageHandler)
     con.register(accountDetailsHandler, 'UpdateAccountValue')
     con.register(positionsHandler, 'UpdatePortfolio')
-#    con.register(portfolioDetailsHandler, 'UpdateAccountTime')
     con.register(marketDataHandler, message.tickPrice)
     con.register(contractDetailsHandler, 'ContractDetails')
     con.register(contractDetailsEnder, 'ContractDetailsEnd')
@@ -61,45 +17,17 @@ def main():
     con.connect()
 
 
-def initialize():
-    global mammoth
-    global objRef
-    objRef = {}
-    mammoth = unPickler('portfolio')  # try, except then newPortfolio
-    objId = 0
-    for i in mammoth.stocks:
-        objRef[objId] = i
-        i.objId = objId
-        objId += 1
-        for j in i.options:
-            objRef[objId] = j
-            j.objId = objId
-            objId += 1
-    getAccountDetails()
+def __init__():
+    main()
 
 
-def ready():
+def check():
     try:
         con
     except NameError:
         main()
     if not con.m_connected:
         main()
-    try:
-        mammoth
-    except NameError:
-        initialize()
-    global lastMsg
-    lastMsg = datetime.now()
-
-
-def updateMammoth():
-    ready()
-    for i in mammoth.stocks:
-        removeExpiredContracts(i)
-        getContractDetails(i)
-        while callMonitor():
-            sleep(1)
 
 
 def allMessageHandler(msg):
@@ -108,58 +36,44 @@ def allMessageHandler(msg):
 #    print(msg)
 
 
-def woolly():
-    timeOut = datetime.timedelta(minutes=10)
-    ready()
-    while True:
-        while datetime.now() < lastMsg + timeOut:
-            ready()
-            sleep(60)
-        con.disconnect()
-        pickler(mammoth, 'portfolio')
-        if weekday(t.today()) == 4:
-            updateMammoth()
-        sleep(secondsTilOpen()-540)  # wake up 9 minutes before trading
-
-
 ###############################################################################
 #   PORTFOLIO DATA
 ###############################################################################
 
 
-def updateAccountDetails(attribute, value):
-    eString = 'mammoth%s = value' % attribute
-    exec(eString)
+def getAccountDetails():
+    check()
+    callMonitor(88888888, True)
+    callMonitor(88888889, True)
+    con.reqAccountUpdates(False, 'U1385930')
 
 
-def updatePositions(contract, symbol, conId):
-    dupe = False
-    for i in mammoth.stocks:
-        if i.symbol == symbol:
-            if contract.m_secType == 'STK':
-                openPosition(i)
-                dupe = True
-            elif contract.m_secType == 'OPT':
-                for j in i.options:
-                    if j.contract.m_conId == conId:
-                        openPosition(i.j)
-                        dupe = True
-                        objRef[len(objRef)] = newOption(i, contract)
-                openPosition(i.options[conId])
-            dupe = True
-            break
-    if not dupe:
-        thisStock = newStock(mammoth, symbol)
-        thisStock.objId = len(objRef)
-        objRef[thisStock.objId] = thisStock
-        if contract.m_secType == 'STK':
-            thisStock.contract = contract
-            openPosition(thisStock)
-        elif contract.m_secType == 'OPT':
-            thisOption = newOption(thisStock, contract)
-            thisOption.objId = len(objRef)
-            objRef[thisOption.objId] = thisOption
-            openPosition(thisOption)
+def accountDetailsHandler(msg):
+    callMonitor(88888888, False)
+    if msg.key == 'CashBalance' and msg.currency == 'USD':
+        attribute = '.cashBalance'
+    elif msg.key == 'AvailableFunds' and msg.currency == 'USD':
+        attribute = '.availableFunds'
+    elif msg.key == 'MaintMarginReq' and msg.currency == 'USD':
+        attribute = '.maintenance'
+    elif msg.key == 'NetLiquidationByCurrency' and msg.currency == 'USD':
+        attribute = '.netLiquidation'
+    elif msg.key == 'OptionMarketValue' and msg.currency == 'USD':
+        attribute = '.optionMarketValue'
+    elif msg.key == 'StockMarketValue' and msg.currency == 'USD':
+        attribute = '.stockMarketValue'
+    elif msg.key == 'RealizedPnL' and msg.currency == 'USD':
+        attribute = '.realizedPnL'
+    elif msg.key == 'UnrealizedPnL' and msg.currency == 'USD':
+        attribute = '.unrealizedPnL'
+    value = msg.value
+    updateAccountDetails(attribute, value)
+
+
+def positionsHandler(msg):
+    callMonitor(88888889, False)
+    contract = msg.contract
+    updatePositions(contract, msg.contract.m_symbol, msg.contract.m_conId)
 
 
 ###############################################################################
@@ -227,20 +141,6 @@ def contractDetailsHandler(msg):  # reqId is for underlying stock
                     del objRef[oId]
                 except KeyError:
                     pass
-
-
-def keepContract(contract, stockObject):
-    dayVol = thisStock.historicalVolatility / math.sqrt(250)
-    last = stockObject.last
-    strike = contract.m_strike
-    expiry = dateStringConverver(contract.m_expiry)
-    t = weekdaysUntil(expiry)
-    tq = math.sqrt(t)
-    tooHigh = (strike > last * (1 + dayVol * tq * 2))
-    tooLow = (strike < last * (1 - dayVol * tq * 2))
-    tooFar = (t > 40)
-    keepIt = (not tooHigh) and (not tooLow) and (not tooFar)
-    return keepIt
 
 
 def contractDetailsEnder(msg):
@@ -349,74 +249,3 @@ def findHistoricalVolatility(stockObject):
             keepGoing = False
         except KeyError:
             thisDate = (thisDate - timedelta(days=1))
-
-
-###############################################################################
-#   PROCESSORS
-###############################################################################
-
-
-def stockDataProcessor(stockObject):
-    # update target price for each expiry (quote --> neural network)
-    for expiry, target in stockObject.target.iteritems():
-        stockObject.target[expiry] = newTarget(expiry, stockObject)
-    # update option EVs (numpy based on volatility)
-#    for j in stockObject.options:
-#        j.expectedValue = optionValue(j)
-
-
-def optionDataProcessor(optionObject):
-    pass
-    # update EV
-    # update Annualized Return
-    #
-
-
-###############################################################################
-#   PROGRAM
-###############################################################################
-
-if __name__ == "__main__":
- #   ready()
-#    print('Done.')
-#    sleep(8)
-#    woolly()
- #   resetContractDetails(mammoth)
-    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'AAPL']
-#    symbols = ['COF', 'CAT', 'MSFT']
-#    symbols = ['TSLA', 'NKE', 'NFLX', 'AAPL']
-    buildPortfolio(symbols)
-    ready()
-    for i in mammoth.stocks:
-        getStockDetails(i)
-    while callMonitor():
-        sleep(0.1)
-
-#    initialize()
-#    sleep(3)
-    refreshHistoricalData(mammoth)
-    while callMonitor():
-        sleep(0.1)
-    pickler(mammoth, 'portfolio')
-
-#    initialize()
-#    updateMammoth()
-#    pickler(mammoth, 'portfolio')
-#    initialize()
-#    mammoth = unPickler('portfolio')
- #   for i in mammoth.stocks:
- #       print(str(len(i.options)) + ' options in ' + i.symbol)
- #   for j in mammoth.openPositions:
- #       print('%d %s %d %s %s') % (j.position, j.symbol, j.strike, j.optType, j.expiry)
-#        for j in i.options:
-#            print(str(j.symbol) + ' ' + str(j.expiry) + ' ' + str(j.strike))
-
-#    for i in mammoth.stocks:
-#        removeExpiredContracts(i)
-
-    for i in mammoth.stocks:
-        print('%d options in %s') % (len(i.options), i.symbol)
-        print('%d days of history for %s') % (len(i.historicalData), i.symbol)
-
-#    print(subscriptions)
-#    pickler(mammoth, 'portfolio')
