@@ -68,7 +68,7 @@ def initialize():
     global objRef
     objRef = {}
     try:
-        mammoth = unPickler('portfolio2')
+        mammoth = unPickler('portfolio')
     except IOError:
         symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'AAPL']
         mammoth = buildPortfolio(symbols)
@@ -85,7 +85,6 @@ def initialize():
             objRef[objId] = j
             j.objId = objId
             objId += 1
-    pickler(mammoth, 'portfolio')
     makeReservation('accountDetails')
 
 def reset():
@@ -104,10 +103,18 @@ def updateMammoth():
 #        removeExpiredContracts(i)
         makeReservation('stockDetails', i)
         makeReservation('historicalData', i)
+    while reservations or callMonitor():
+        nextReservation()
+        sleep(0.05)
+    for i in mammoth.stocks:
         makeReservation('optionDetails', i)
-    nextReservation()
-    while callMonitor():
-        sleep(0.1)
+        nextReservation()
+        while callMonitor():
+            sleep(1)
+
+def lastActivity():
+    global lastActive
+    lastActive = datetime.now()
 
 def connect():
     global con
@@ -130,14 +137,13 @@ def check():
     try:
         con
     except NameError:
-        main()
+        connect()
     if not con.m_connected:
-        main()
+        connect()
 
 def allMessageHandler(msg):
 #    print(msg)
-    global lastActive
-    lastActive = datetime.now()
+    lastActivity()
 
 ###############################################################################
 #   PORTFOLIO DATA
@@ -209,8 +215,10 @@ def updatePositions(openPositions):
 
 def getAccountDetails():
     check()
+    global opens
+    opens = []
     callMonitor(88888888, True)
-    con.reqAccountUpdates(False, 'U1385930')
+    con.reqAccountUpdates(True, 'U1385930')
 
 def accountDetailsHandler(msg):
     if msg.key == 'CashBalance' and msg.currency == 'USD':
@@ -230,14 +238,12 @@ def accountDetailsHandler(msg):
     elif msg.key == 'UnrealizedPnL' and msg.currency == 'USD':
         attribute = '.unrealizedPnL'
     value = msg.value
-    updateAccountDetails(attribute, value)
+    try:
+        updateAccountDetails(attribute, value)
+    except UnboundLocalError:
+        pass
 
 def positionsHandler(msg):
-    global opens
-    try:
-        opens
-    except NameError:
-        opens = []
     if msg.contract.m_secType == 'STK':
         thisObject = stock(msg.contract.m_symbol)
     elif msg.contract.m_secType == 'OPT':
@@ -246,10 +252,11 @@ def positionsHandler(msg):
     thisObject.position = msg.position
     opens.append(thisObject)
 
-def accountDetailsEnder():
+def accountDetailsEnder(msg):
     callMonitor(88888888, False)
     updatePositions(opens)
     del opens
+    con.reqAccountUpdates(False, 'U1385930')
 
 ###############################################################################
 #   CONTRACT DATA
@@ -281,6 +288,9 @@ def activeContract(contract, stockObject):
     last = stockObject.last
     strike = contract.m_strike
     expiry = dateStringConverter(contract.m_expiry)
+    if expiry < datetime.now():
+        active = False
+        return active
     t = weekdaysUntil(expiry)
     tq = math.sqrt(t)
     tooHigh = (strike > last * (1 + dayVol * tq * 2))
@@ -369,7 +379,7 @@ def updateHistoricalData(objId, date, dataType, data):  # reqId is for underlyin
     thisObject = objRef[objId]
     try:
         thisObject.historicalData[date]
-    except NameError:
+    except KeyError:
         thisObject.historicalData[date] = historicalData(date)
         exec('thisObject.historicalData[date]%s = data') % dataType
 
@@ -387,7 +397,7 @@ def findHistoricalVolatility(stockObject):
 def getHistoricalData(marketObject):
     check()
     contract = marketObject.contract
-    durationStr = '5 D'
+    durationStr = '1 Y'
     barSizeSetting = '1 day'
     useRTH = 1
     formatDate = 1
@@ -415,6 +425,7 @@ def historicalDataHandler(msg):  # reqId is for underlying
     objId = msg.reqId % 10000000
     if msg.date[:8] == 'finished':
         callMonitor(msg.reqId, False)
+        findHistoricalVolatility(objRef[objId])
     else:
         thisData = dataFormat()
         date = msg.date
@@ -431,7 +442,7 @@ def historicalDataHandler(msg):  # reqId is for underlying
         thisData.volume = msg.volume
         thisData.count = msg.count
         thisData.WAP = msg.WAP
-    updateHistoricalData(objId, date, dataType, thisData)
+        updateHistoricalData(objId, date, dataType, thisData)
 
 ###############################################################################
 #   CALL MANAGEMENT
@@ -442,7 +453,9 @@ class reservation(object):
         self.callType = callType
         self.marketObject = marketObject
         self.time = time
-        if marketObject:
+        if callType == 'accountDetails':
+            self.objId = 88888888
+        else:
             self.objId = marketObject.objId
 
 def makeReservation(callType, marketObject=None, delay=0):
@@ -464,23 +477,35 @@ def makeReservation(callType, marketObject=None, delay=0):
 def nextReservation():
     i = len(reservations) - 1
     while reservations:
-        if callMonitor(reservations[i].objId):
+        try:
+            cooker[reservations[i].objId]
+            proceed = False
+        except KeyError:
+            proceed = True
+#            try:  # check for outstanding impVol call
+#                cooker[reservations[i].objId + 70000000]
+#                proceed = False
+#            except KeyError:
+#                pass
+        except NameError:
+            proceed = True
+        if proceed:
             thisReservation = reservations.pop(i)
+            if thisReservation.callType == 'accountDetails':
+                getAccountDetails()
+            if thisReservation.callType == 'stockDetails':
+                getStockDetails(thisReservation.marketObject)
+            if thisReservation.callType == 'optionDetails':
+                getOptionDetails(thisReservation.marketObject)
+            if thisReservation.callType == 'marketData':
+                getMarketData(thisReservation.marketObject)
+            if thisReservation.callType == 'historicalData':
+                getHistoricalData(thisReservation.marketObject)
             break
         else:
             i -= 1
             if i < 0:
                 i = len(reservations) - 1
-    if thisReservation.callType == 'accountDetails':
-        getAccountDetails()
-    if thisReservation.callType == 'stockDetails':
-        getStockDetails(thisReservation.marketObject)
-    if thisReservation.callType == 'optionDetails':
-        getOptionDetails(thisReservation.marketObject)
-    if thisReservation.callType == 'marketData':
-        getMarketData(thisReservation.marketObject)
-    if thisReservation.callType == 'historicalData':
-        getHistoricalData(thisReservation.marketObject)
 
 def callMonitor(callId=None, monitorCall=True, timeout=100):
     # leave callId blank to return number of outstanding calls
@@ -500,9 +525,13 @@ def callMonitor(callId=None, monitorCall=True, timeout=100):
     if callId is not None:
         if not monitorCall:
             try:
-                elapsed = (datetime.now() - cooker[callId]).microseconds / 1000
+                sElapsed = (datetime.now() - cooker[callId]).seconds
+                msElapsed = (datetime.now() - cooker[callId]).microseconds / 1000
                 del cooker[callId]
-                print('resolved callId %d in %d ms') % (callId, elapsed)
+                if sElapsed == 0:
+                    print('resolved callId %d in %d ms') % (callId, msElapsed)
+                else:
+                    print('resolved callId %d in %d.%d sec') % (callId, sElapsed, msElapsed)
             except KeyError:
                 pass
         else:
@@ -510,12 +539,10 @@ def callMonitor(callId=None, monitorCall=True, timeout=100):
                 sleep(0.1)
                 print('waiting to add callId %d') % callId
             try:
-                if cooker[callId]:
-                    return False
+                cooker[callId]
             except KeyError:
                 cooker[callId] = datetime.now()
                 print('monitoring callId %d') % callId
-                return True
     else:
         return len(cooker)
 
@@ -558,7 +585,10 @@ if __name__ == "__main__":
 #        sleep(0.1)
 
     initialize()
-#    sleep(3)
+    timeout = timedelta(seconds=1)
+    while datetime.now() < lastActive + timeout or callMonitor() or reservations:
+        nextReservation()
+        sleep(0.05)
 #    refreshHistoricalData(mammoth)
 #    while callMonitor():
 #        sleep(0.1)

@@ -57,8 +57,8 @@ def secondsTilClose():
     return sec
 
 
-def weekdaysUntil(dateString):
+def weekdaysUntil(dateTime):
     beginDate = datetime.today().date()
-    endDate = dateStringConverter(dateString).date()
+    endDate = dateTime.date()
     weekdays = busday_count(beginDate, endDate)
     return weekdays
