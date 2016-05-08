@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from marketObjects import stock, option, dataFormat
 
 
-def main():
+def connect():
     global con
     con = ibConnection(port=7496, clientId=1618)
     # 7496 for real account, 7497 for paper trader
