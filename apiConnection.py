@@ -1,7 +1,6 @@
 from ib.opt import ibConnection, message
 from datetime import datetime, timedelta
 from marketObjects import stock, option, dataFormat
-from mammoth import lastActivity, updateAccountDetails, updatePositions, updateStockDetails, updateOptionDetails, updateMarketData, updateHistoricalData
 
 
 def main():
@@ -38,7 +37,7 @@ def check():
 
 def allMessageHandler(msg):
 #    print(msg)
-    lastActivity()
+    mammoth.lastActivity()
 
 
 ###############################################################################
@@ -70,7 +69,7 @@ def accountDetailsHandler(msg):
     elif msg.key == 'UnrealizedPnL' and msg.currency == 'USD':
         attribute = '.unrealizedPnL'
     value = msg.value
-    updateAccountDetails(attribute, value)
+    mammoth.updateAccountDetails(attribute, value)
 
 
 def positionsHandler(msg):
@@ -90,7 +89,7 @@ def positionsHandler(msg):
 
 def accountDetailsEnder():
     callMonitor(88888888, False)
-    updatePositions(opens)
+    mammoth.updatePositions(opens)
     del opens
 
 
@@ -118,9 +117,9 @@ def getOptionDetails(stockObject):
 def contractDetailsHandler(msg):  # reqId is for underlying stock
     thisContract = msg.contractDetails.m_summary
     if thisContract.m_secType == 'STK':
-        updateStockDetails(msg.reqId, thisContract, msg.contractDetails.m_industry)
+        mammoth.updateStockDetails(msg.reqId, thisContract, msg.contractDetails.m_industry)
     elif thisContract.m_secType == 'OPT':
-        updateOptionDetails(msg.reqId, thisContract)
+        mammoth.updateOptionDetails(msg.reqId, thisContract)
 
 
 def contractDetailsEnder(msg):
@@ -163,7 +162,7 @@ def marketDataHandler(msg):
     elif msg.field == 9:
         attribute = '.close'
         value = msg.price
-    updateMarketData(msg.tickerId, attribute, value)
+    mammoth.updateMarketData(msg.tickerId, attribute, value)
 
 
 ###############################################################################
@@ -216,7 +215,7 @@ def historicalDataHandler(msg):  # reqId is for underlying
         thisData.volume = msg.volume
         thisData.count = msg.count
         thisData.WAP = msg.WAP
-    updateHistoricalData(objId, date, dataType, thisData)
+    mammoth.updateHistoricalData(objId, date, dataType, thisData)
 
 
 ###############################################################################
@@ -229,7 +228,8 @@ class reservation(object):
         self.callType = callType
         self.marketObject = marketObject
         self.time = time
-        self.objId = marketObject.objId
+        if marketObject:
+            self.objId = marketObject.objId
 
 
 def makeReservation(callType, marketObject=None, delay=0):
@@ -251,7 +251,7 @@ def makeReservation(callType, marketObject=None, delay=0):
 
 def nextReservation():
     i = len(reservations) - 1
-    while True:
+    while reservations:
         if callMonitor(reservations[i].objId):
             thisReservation = reservations.pop(i)
             break
@@ -307,3 +307,6 @@ def callMonitor(callId=None, monitorCall=True, timeout=100):
                 return True
     else:
         return len(cooker)
+
+
+import mammoth  # this import is at the end of the module to avoid circular reference issues

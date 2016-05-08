@@ -68,7 +68,15 @@ def initialize():
     global mammoth
     global objRef
     objRef = {}
-    mammoth = unPickler('portfolio')  # try, except then newPortfolio
+    try:
+        mammoth = unPickler('portfolio2')
+    except IOError:
+        symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'AAPL']
+        mammoth = buildPortfolio(symbols)
+        for i in mammoth.stocks:
+            i.objId = len(objRef)
+            objRef[i.objId] = i
+        updateMammoth()
     objId = 0
     for i in mammoth.stocks:
         objRef[objId] = i
@@ -78,6 +86,7 @@ def initialize():
             objRef[objId] = j
             j.objId = objId
             objId += 1
+    pickler(mammoth, 'portfolio')
     makeReservation('accountDetails')
 
 
@@ -96,10 +105,13 @@ def ready():
 def updateMammoth():
     ready()
     for i in mammoth.stocks:
-        removeExpiredContracts(i)
+#        removeExpiredContracts(i)
         makeReservation('stockDetails', i)
         makeReservation('historicalData', i)
         makeReservation('optionDetails', i)
+    nextReservation()
+    while callMonitor():
+        sleep(0.1)
 
 
 def lastActivity():
@@ -184,6 +196,7 @@ def updatePositions(openPositions):
 
 
 def updateStockDetails(objId, contract, industry):
+    global objRef
     thisStock = objRef[objId]
     thisStock.contract = contract
     thisStock.industry = industry
@@ -256,14 +269,11 @@ def updateHistoricalData(objId, date, dataType, data):  # reqId is for underlyin
 def findHistoricalVolatility(stockObject):
     keepGoing = True
     thisDate = datetime.today()
-    while keepGoing:
+    for i in stockObject.historicalData:
         dateString = thisDate.strftime('%Y%m%d')
         try:
-            stockObject.historicalVolatility = (stockObject
-                                                .historicalData[dateString]
-                                                .historicalVolatility
-                                                .close)
-            keepGoing = False
+            stockObject.historicalVolatility = (stockObject.historicalData[dateString].historicalVolatility.close)
+            break
         except KeyError:
             thisDate = (thisDate - timedelta(days=1))
 
@@ -299,22 +309,22 @@ if __name__ == "__main__":
 #    sleep(8)
 #    woolly()
  #   resetContractDetails(mammoth)
-    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'AAPL']
+#    symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'AAPL']
 #    symbols = ['COF', 'CAT', 'MSFT']
 #    symbols = ['TSLA', 'NKE', 'NFLX', 'AAPL']
-    buildPortfolio(symbols)
-    ready()
-    for i in mammoth.stocks:
-        getStockDetails(i)
-    while callMonitor():
-        sleep(0.1)
+#    buildPortfolio(symbols)
+#    ready()
+#    for i in mammoth.stocks:
+#        getStockDetails(i)
+#    while callMonitor():
+#        sleep(0.1)
 
-#    initialize()
+    initialize()
 #    sleep(3)
-    refreshHistoricalData(mammoth)
-    while callMonitor():
-        sleep(0.1)
-    pickler(mammoth, 'portfolio')
+#    refreshHistoricalData(mammoth)
+#    while callMonitor():
+#        sleep(0.1)
+#    pickler(mammoth, 'portfolio')
 
 #    initialize()
 #    updateMammoth()

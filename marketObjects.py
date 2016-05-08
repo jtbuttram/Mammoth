@@ -158,6 +158,7 @@ def buildPortfolio(symbols):  # symbols is a list of stock symbols
     pickler(thisPortfolio, 'portfolio')
 #    return thisPortfolio
     print('Portfolio built with %d stocks loaded.') % l
+    return thisPortfolio
 
 
 def resetContractDetails(portfolioObject):
