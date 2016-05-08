@@ -20,6 +20,13 @@ def datetimeConverter(date='today'):
     return dateString
 
 
+def dateConverter(date='today'):
+    if date == 'today':
+        date = datetime.today()
+    dateString = date.strftime('%Y%m%d')
+    return dateString
+
+
 def dateStringConverter(dateString):
     dateTime = datetime.strptime(dateString, '%Y%m%d')
     return dateTime
@@ -57,8 +64,22 @@ def secondsTilClose():
     return sec
 
 
-def weekdaysUntil(dateTime):
+def weekdaysUntil(endDatetime):
     beginDate = datetime.today().date()
-    endDate = dateTime.date()
+    endDate = endDatetime.date()
+    weekdays = busday_count(beginDate, endDate)
+    return weekdays
+
+
+def weekdaysBetween(startDatetime, endDatetime):
+    beginDate = startDatetime.date()
+    endDate = endDatetime.date()
+    weekdays = busday_count(beginDate, endDate)
+    return weekdays
+
+
+def weekdaysBetweenStr(startDateStr, endDateStr):
+    beginDate = dateStringConverter(startDateStr)
+    endDate = dateStringConverter(endDateStr)
     weekdays = busday_count(beginDate, endDate)
     return weekdays

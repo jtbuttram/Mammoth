@@ -44,6 +44,7 @@ ACCEPTANCE CRITERIA
 * try again on timeouts
 * scan portfolio frequently and update active contracts to monitor
 * update positions and activity
+* obey pacing rules for historical data
 -------------------------------------------------------------------------------
 '''
 
@@ -68,14 +69,14 @@ def initialize():
     global objRef
     objRef = {}
     try:
-        mammoth = unPickler('portfolio')
+        mammoth = unPickler('portfolio_X')
     except IOError:
-        symbols = ['BAC', 'AXP', 'GSK', 'COF', 'CAT', 'MSFT', 'AAPL']
+        symbols = ['BAC', 'AXP']  # , 'GSK', 'COF', 'CAT', 'MSFT', 'AAPL']
         mammoth = buildPortfolio(symbols)
         for i in mammoth.stocks:
             i.objId = len(objRef)
             objRef[i.objId] = i
-        updateMammoth()
+        aWholeNewMammoth()
     objId = 0
     for i in mammoth.stocks:
         objRef[objId] = i
@@ -85,7 +86,7 @@ def initialize():
             objRef[objId] = j
             j.objId = objId
             objId += 1
-    makeReservation('accountDetails')
+#    makeReservation('accountDetails')
 
 def reset():
     pass
@@ -96,6 +97,20 @@ def ready():
     except NameError:
         initialize()
     lastActivity()
+
+def aWholeNewMammoth():
+    ready()
+    for i in mammoth.stocks:
+        getStockDetails(i)
+    while callMonitor():
+        sleep(1)
+    for i in mammoth.stocks:
+        refreshHistoricalData(i)
+    for i in mammoth.stocks:
+        getOptionDetails(i)
+    while callMonitor():
+        sleep(1)
+    pickler(mammoth, 'portfolio')
 
 def updateMammoth():
     ready()
@@ -371,9 +386,10 @@ def marketDataHandler(msg):
 #   HISTORICAL DATA
 ###############################################################################
 
-def refreshHistoricalData(portfolioObject):
-    for i in portfolioObject.stocks:
-        makeReservation('historicalData',i)
+def refreshHistoricalData(marketObject):
+    for increment in range(2):
+            getHistoricalData(marketObject, increment)
+            sleep(30.1)
 
 def updateHistoricalData(objId, date, dataType, data):  # reqId is for underlying
     thisObject = objRef[objId]
@@ -394,32 +410,31 @@ def findHistoricalVolatility(stockObject):
         except KeyError:
             thisDate = (thisDate - timedelta(days=1))
 
-def getHistoricalData(marketObject):
+def getHistoricalData(marketObject, increment):
     check()
     contract = marketObject.contract
-    durationStr = '1 Y'
+    durationStr = '5 Y'
     barSizeSetting = '1 day'
     useRTH = 1
     formatDate = 1
-    endDateTime = '20151108''  # datetimeConverter()
+    daysAgo = 1800 * increment
+    endDateTime = (datetime.today() - timedelta(days=daysAgo)).strftime("%Y%m%d %H:%M:%S %Z")
+#    endDateTime = datetimeConverter()
 
     whatToShow = 'TRADES'
     reqId = marketObject.objId + 10000000
-    callMonitor(reqId, True, timeout=5)
-    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH,
-                          formatDate)
+    callMonitor(reqId, True)
+    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate)
 
     whatToShow = 'HISTORICAL_VOLATILITY'
     reqId = marketObject.objId + 60000000
-    callMonitor(reqId, True, timeout=5)
-    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH,
-                          formatDate)
+    callMonitor(reqId, True)
+    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate)
 
     whatToShow = 'OPTION_IMPLIED_VOLATILITY'
     reqId = marketObject.objId + 70000000
-    callMonitor(reqId, True, timeout=5)
-    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH,
-                          formatDate)
+    callMonitor(reqId, True)
+    con.reqHistoricalData(reqId, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate)
 
 def historicalDataHandler(msg):  # reqId is for underlying
     objId = msg.reqId % 10000000
@@ -449,23 +464,24 @@ def historicalDataHandler(msg):  # reqId is for underlying
 ###############################################################################
 
 class reservation(object):
-    def __init__(self, callType, marketObject, time):
+    def __init__(self, callType, marketObject, time, special):
         self.callType = callType
         self.marketObject = marketObject
         self.time = time
+        self.special = special
         if callType == 'accountDetails':
             self.objId = 88888888
         else:
             self.objId = marketObject.objId
 
-def makeReservation(callType, marketObject=None, delay=0):
+def makeReservation(callType, marketObject=None, delay=0, special=0):
     global reservations
     try:
         reservations
     except NameError:
         reservations = []
     time = datetime.now() + timedelta(seconds=delay)
-    thisReservation = reservation(callType, marketObject, time)
+    thisReservation = reservation(callType, marketObject, time, special)
     j = 0
     for i in reservations:
         j += 1
@@ -500,7 +516,7 @@ def nextReservation():
             if thisReservation.callType == 'marketData':
                 getMarketData(thisReservation.marketObject)
             if thisReservation.callType == 'historicalData':
-                getHistoricalData(thisReservation.marketObject)
+                getHistoricalData(thisReservation.marketObject, thisReservation.special)
             break
         else:
             i -= 1
@@ -509,7 +525,6 @@ def nextReservation():
 
 def callMonitor(callId=None, monitorCall=True, timeout=100):
     # leave callId blank to return number of outstanding calls
-    timeOut = timedelta(seconds=timeout)
     global cooker
     try:
         cooker
@@ -517,31 +532,39 @@ def callMonitor(callId=None, monitorCall=True, timeout=100):
         cooker = {}
     trash = []
     for k, v in cooker.iteritems():
-        if v < datetime.now() - timeOut:
+        if v < datetime.now():
             trash.append(k)
-            print('callId %d timed out after %d seconds') % (k, timeout)
+            print('callId %d timed out') % k
     while trash:
         del cooker[trash.pop()]
     if callId is not None:
         if not monitorCall:
             try:
-                sElapsed = (datetime.now() - cooker[callId]).seconds
-                msElapsed = (datetime.now() - cooker[callId]).microseconds / 1000
+#                sElapsed = (datetime.now() - cooker[callId]).seconds
+#                msElapsed = (datetime.now() - cooker[callId]).microseconds / 1000
                 del cooker[callId]
-                if sElapsed == 0:
-                    print('resolved callId %d in %d ms') % (callId, msElapsed)
-                else:
-                    print('resolved callId %d in %d.%d sec') % (callId, sElapsed, msElapsed)
+                print('resolved callId %d') % callId
+#                if sElapsed == 0:
+#                    print('resolved callId %d in $d ms') % (callId, msElapsed)
+#                else:
+#                    print('resolved callId %d in %d.%d sec') % (callId, sElapsed, msElapsed)
             except KeyError:
                 pass
         else:
             while len(cooker) >= 100:
                 sleep(0.1)
+                trash = []
+                for k, v in cooker.iteritems():
+                    if v < datetime.now():
+                        trash.append(k)
+                        print('callId %d timed out') % k
+                while trash:
+                    del cooker[trash.pop()]
                 print('waiting to add callId %d') % callId
             try:
                 cooker[callId]
             except KeyError:
-                cooker[callId] = datetime.now()
+                cooker[callId] = datetime.now() + timedelta(seconds=timeout)
                 print('monitoring callId %d') % callId
     else:
         return len(cooker)
@@ -585,17 +608,16 @@ if __name__ == "__main__":
 #        sleep(0.1)
 
     initialize()
-    timeout = timedelta(seconds=1)
-    while datetime.now() < lastActive + timeout or callMonitor() or reservations:
-        nextReservation()
-        sleep(0.05)
+#    timeout = timedelta(seconds=1)
+#    while datetime.now() < lastActive + timeout or callMonitor() or reservations:
+#        nextReservation()
+#        sleep(0.1)
 #    refreshHistoricalData(mammoth)
 #    while callMonitor():
-#        sleep(0.1)
+#        sleep(1)
 #    pickler(mammoth, 'portfolio')
 
 #    initialize()
-#    updateMammoth()
 #    pickler(mammoth, 'portfolio')
 #    initialize()
 #    mammoth = unPickler('portfolio')

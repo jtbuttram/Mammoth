@@ -1,6 +1,6 @@
 from ib.ext.Contract import Contract
 from dataTools import pickler
-from logicTools import datetimeConverver
+from logicTools import datetimeConverter
 
 
 class portfolio(object):
@@ -138,7 +138,7 @@ def openPosition(thisObject):
 
 
 def removeExpiredContracts(stockObject):
-    today = datetimeConverver()
+    today = datetimeConverter()
     i = 0
     while i < len(stockObject.options):
         if stockObject.options[i].expiry < today:
@@ -167,4 +167,4 @@ def resetContractDetails(portfolioObject):
 
 if __name__ == "__main__":
 #    buildPortfolio()
-    print(datetimeConverver())
+    print(datetimeConverter())
