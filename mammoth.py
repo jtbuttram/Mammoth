@@ -401,7 +401,7 @@ def getHistoricalData(marketObject):
     barSizeSetting = '1 day'
     useRTH = 1
     formatDate = 1
-    endDateTime = datetimeConverver()
+    endDateTime = '20151108''  # datetimeConverter()
 
     whatToShow = 'TRADES'
     reqId = marketObject.objId + 10000000

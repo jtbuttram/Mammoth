@@ -13,7 +13,7 @@ def isWeekday(addDays=0):
         return False
 
 
-def datetimeConverver(date='today'):
+def datetimeConverter(date='today'):
     if date == 'today':
         date = datetime.today()
     dateString = date.strftime('%Y%m%d %H:%M:%S %Z')
