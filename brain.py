@@ -3,6 +3,7 @@ import math
 from logicTools import weekdaysUntil, dateConverter
 from dataTools import pickler, unPickler
 from datetime import datetime, timedelta
+from time import sleep
 
 
 def newTarget(expiry, stockObject):
@@ -49,6 +50,7 @@ def translateHistoricalData():
     oneDay = timedelta(days=1)
     thisData = []
     for s in thisPortfolio.stocks:
+        t = datetime.now()
         dataMap = []
         day = datetime.today()
         gap = 0
@@ -68,6 +70,7 @@ def translateHistoricalData():
                 inputData = []
                 outputData = []
                 h = s.historicalData[dataMap[i]]
+                '''
                 hd = h.trades
                 outputData.append([hd.open])
                 outputData.append([hd.high])
@@ -92,11 +95,13 @@ def translateHistoricalData():
                 outputData.append([hd.volume])
                 outputData.append([hd.count])
                 outputData.append([hd.WAP])
-#                for hd in [h.trades, h.historicalVolatility, h.impliedVolatility]:
-#                    for hdd in [hd.open, hd.high, hd.low, hd.close, hd.volume, hd.count, hd.WAP]:
-#                        outputData.append([hdd])
+                '''
+                for hd in [h.trades, h.historicalVolatility, h.impliedVolatility]:
+                    for hdd in [hd.open, hd.high, hd.low, hd.close, hd.volume, hd.count, hd.WAP]:
+                        outputData.append([hdd])
                 for j in range(daysHist):
                     h = s.historicalData[dataMap[i + j + 1]]
+                    '''
                     hd = h.trades
                     inputData.append([hd.open])
                     inputData.append([hd.high])
@@ -121,13 +126,19 @@ def translateHistoricalData():
                     inputData.append([hd.volume])
                     inputData.append([hd.count])
                     inputData.append([hd.WAP])
-#                    for hd in [h.trades, h.historicalVolatility, h.impliedVolatility]:
-#                        for hdd in [hd.open, hd.high, hd.low, hd.close, hd.volume, hd.count, hd.WAP]:
-#                            inputData.append([hdd])
+                    '''
+                    for hd in [h.trades, h.historicalVolatility, h.impliedVolatility]:
+                        for hdd in [hd.open, hd.high, hd.low, hd.close, hd.volume, hd.count, hd.WAP]:
+                            inputData.append([hdd])
                 thisData.append((inputData, outputData))
         print(len(thisData))
+    t = datetime.now()
     pickler(thisData, 'trainingData')
+    dt = (datetime.now() - t).seconds
+    print(dt)
 
 
 if __name__ == "__main__":
-    translateHistoricalData()
+#    translateHistoricalData()
+    theData = unPickler('trainingData')
+    sleep(10)
