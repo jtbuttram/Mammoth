@@ -70,75 +70,74 @@ def translateHistoricalData():
                 inputData = []
                 outputData = []
                 h = s.historicalData[dataMap[i]]
-                '''
                 hd = h.trades
-                outputData.append([hd.open])
-                outputData.append([hd.high])
-                outputData.append([hd.low])
-                outputData.append([hd.close])
-                outputData.append([hd.volume])
-                outputData.append([hd.count])
-                outputData.append([hd.WAP])
-                hd = h.historicalVolatility
-                outputData.append([hd.open])
-                outputData.append([hd.high])
-                outputData.append([hd.low])
-                outputData.append([hd.close])
-                outputData.append([hd.volume])
-                outputData.append([hd.count])
-                outputData.append([hd.WAP])
-                hd = h.impliedVolatility
-                outputData.append([hd.open])
-                outputData.append([hd.high])
-                outputData.append([hd.low])
-                outputData.append([hd.close])
-                outputData.append([hd.volume])
-                outputData.append([hd.count])
-                outputData.append([hd.WAP])
+#                outputData.append(hd.open)
+#                outputData.append(hd.high)
+#                outputData.append(hd.low)
+#                outputData.append(hd.close)
+#                outputData.append(hd.volume)
+#                outputData.append(hd.count)
+                outputData.append(hd.WAP)
+#                outputData.append(hd.open)
+#                outputData.append(hd.high)
+#                outputData.append(hd.low)
+#                outputData.append(hd.close)
+#                outputData.append(hd.volume)
+#                outputData.append(hd.count)
+#                outputData.append(hd.WAP)
+#                hd = h.impliedVolatility
+#                outputData.append(hd.open)
+#                outputData.append(hd.high)
+#                outputData.append(hd.low)
+#                outputData.append(hd.close)
+#                outputData.append(hd.volume)
+#                outputData.append(hd.count)
+#                outputData.append(hd.WAP)
                 '''
                 for hd in [h.trades, h.historicalVolatility, h.impliedVolatility]:
                     for hdd in [hd.open, hd.high, hd.low, hd.close, hd.volume, hd.count, hd.WAP]:
                         outputData.append([hdd])
+                '''
                 for j in range(daysHist):
                     h = s.historicalData[dataMap[i + j + 1]]
-                    '''
                     hd = h.trades
-                    inputData.append([hd.open])
-                    inputData.append([hd.high])
-                    inputData.append([hd.low])
-                    inputData.append([hd.close])
-                    inputData.append([hd.volume])
-                    inputData.append([hd.count])
-                    inputData.append([hd.WAP])
+                    inputData.append(hd.open)
+                    inputData.append(hd.high)
+                    inputData.append(hd.low)
+                    inputData.append(hd.close)
+                    inputData.append(hd.volume)
+                    inputData.append(hd.count)
+                    inputData.append(hd.WAP)
                     hd = h.historicalVolatility
-                    inputData.append([hd.open])
-                    inputData.append([hd.high])
-                    inputData.append([hd.low])
-                    inputData.append([hd.close])
-                    inputData.append([hd.volume])
-                    inputData.append([hd.count])
-                    inputData.append([hd.WAP])
+#                    inputData.append(hd.open)
+#                    inputData.append(hd.high)
+#                    inputData.append(hd.low)
+                    inputData.append(hd.close)
+#                    inputData.append(hd.volume)
+#                    inputData.append(hd.count)
+#                    inputData.append(hd.WAP)
                     hd = h.impliedVolatility
-                    inputData.append([hd.open])
-                    inputData.append([hd.high])
-                    inputData.append([hd.low])
-                    inputData.append([hd.close])
-                    inputData.append([hd.volume])
-                    inputData.append([hd.count])
-                    inputData.append([hd.WAP])
+#                    inputData.append(hd.open)
+#                    inputData.append(hd.high)
+#                    inputData.append(hd.low)
+                    inputData.append(hd.close)
+#                    inputData.append(hd.volume)
+#                    inputData.append(hd.count)
+#                    inputData.append(hd.WAP)
                     '''
                     for hd in [h.trades, h.historicalVolatility, h.impliedVolatility]:
                         for hdd in [hd.open, hd.high, hd.low, hd.close, hd.volume, hd.count, hd.WAP]:
                             inputData.append([hdd])
+                    '''
                 thisData.append((inputData, outputData))
         print(len(thisData))
     t = datetime.now()
     pickler(thisData, 'trainingData')
     dt = (datetime.now() - t).seconds
-    print(dt)
+    print('pickling process took %d seconds') % dt
 
 
 if __name__ == "__main__":
-#    translateHistoricalData()
-    theData = unPickler('trainingData')
+    translateHistoricalData()
+#    theData = unPickler('trainingData')
     sleep(10)
