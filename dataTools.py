@@ -68,12 +68,15 @@ def dataLoader(sampleSize):
                 gap += 1
             day -= oneDay
         dataLen = len(dataShelf)
+        print('dataShelf is %d long') % dataLen
         c = stepper(step)
         i = int(c // tNum)
         while i < (dataLen - daysHist - tMax - 1):
+            #print('c is %d') % c
+            #print('i is %d') % i
             i = int(c // tNum)
             t = int(c % tNum) + tMin
-            targetData = dataShelf[i]
+            targetData = np.array(dataShelf[i])
             todayData = np.array(dataShelf[i + t])
             thisData = []
             thisData.append(np.sqrt(t))
@@ -85,20 +88,15 @@ def dataLoader(sampleSize):
                 # cleanHD = sigmoid(hd1)
                 for x in [0, 1, 2, 3, 4, 5, 6, 17]:
                     thisData.append(hd1.item(x))
-                    #                npThisData = np.array(thisData)
-            inputData = np.reshape(thisData, (2002, 1))
-            outputData = targetData[6] / todayData[6]
+            npThisData = np.array(thisData)
+            inputData = np.reshape(npThisData, (2002, 1))
+            outputData = targetData.item(6) / todayData.item(6)
             trainingData.append((inputData, outputData))
             c += stepper(step)
-            print('%d data points in training data') % len(trainingData)
-        print('stock complete')
+        print('stock complete; %d data points in training data') % len(trainingData)
     tt = (datetime.now() - T).seconds
     print('the loading process took %d seconds') % tt
     T = datetime.now()
     pickler(trainingData, 'trainingData')
     dt = (datetime.now() - T).seconds
     print('pickling process took %d seconds') % dt
-
-
-if __name__ == "__main__":
-    dataLoader(1000)
