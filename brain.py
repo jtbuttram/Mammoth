@@ -1,7 +1,9 @@
 from scipy import stats
 import math
-from logicTools import weekdaysUntil
-from dataTools import pickler, unPickler
+from logicTools import weekdaysUntil, dateConverter
+from dataTools import pickler, unPickler, dataLoader
+from datetime import datetime, timedelta
+from time import sleep
 
 
 def newTarget(expiry, stockObject):
@@ -40,5 +42,13 @@ def blackScholes(optType, target, strike, expiry, volatility, riskFreeRate=0,
                    (cp * k * math.exp(-rf * t) * stats.norm.cdf(cp * d2)))
     return optionPrice
 
+
 def impliedVolatility():
     pass
+
+
+if __name__ == "__main__":
+    dataLoader(100)
+    theData = unPickler('trainingData')
+    print(theData[0])
+    sleep(10)

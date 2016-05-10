@@ -1,6 +1,6 @@
 from ib.ext.Contract import Contract
 from dataTools import pickler
-from logicTools import datetimeConverver
+from logicTools import datetimeConverter
 
 
 class portfolio(object):
@@ -21,7 +21,7 @@ class portfolio(object):
 
 class stock(object):  # what if this class was an extension of a contract?
     def __init__(self, symbol):
-        self.portfolio = portfolio()
+        self.portfolio = None
         self.symbol = symbol.upper()
         self.objId = -1
         self.position = 0
@@ -35,7 +35,6 @@ class stock(object):  # what if this class was an extension of a contract?
         self.impliedVolatility = 0
         self.target = {}
         self.subscribed = False
-        self.cId = -1
         self.options = []
         self.promoted = None  # highest EV option for each stock
         self.contract = newContract(self.symbol, 'STK')
@@ -50,6 +49,7 @@ class option(object):
         self.strike = strike
         self.objId = -1
         self.position = 0
+        self.active = False
         self.secType = 'OPT'
         self.optType = 'PUT'
         self.last = 0
@@ -60,8 +60,7 @@ class option(object):
         self.expectedValue = 0
         self.annualizedReturn = 0
         self.subscribed = False
-        self.cId = -1
-        self.contract = Contract()
+        self.contract = None
 
 
 class dataFormat(object):
@@ -139,7 +138,7 @@ def openPosition(thisObject):
 
 
 def removeExpiredContracts(stockObject):
-    today = datetimeConverver()
+    today = datetimeConverter()
     i = 0
     while i < len(stockObject.options):
         if stockObject.options[i].expiry < today:
@@ -159,6 +158,7 @@ def buildPortfolio(symbols):  # symbols is a list of stock symbols
     pickler(thisPortfolio, 'portfolio')
 #    return thisPortfolio
     print('Portfolio built with %d stocks loaded.') % l
+    return thisPortfolio
 
 
 def resetContractDetails(portfolioObject):
@@ -167,4 +167,4 @@ def resetContractDetails(portfolioObject):
 
 if __name__ == "__main__":
 #    buildPortfolio()
-    print(datetimeConverver())
+    print(datetimeConverter())

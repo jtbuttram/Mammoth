@@ -2,7 +2,7 @@ from ib.ext.Contract import Contract
 from ib.ext.ContractDetails import ContractDetails
 from ib.opt import ibConnection, message
 from time import sleep
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def print_message_from_ib(msg):
@@ -23,6 +23,7 @@ def main():
 #    con.register(historicalDataHandler, message.historicalData)
 #    con.register(marketDataHandler, message.tickPrice)
 #    con.register(marketDataHandler, message.tickSize)
+    con.register(accountDetailsEnder, 'AccountDownloadEnd')
     con.connect()
 
     # In future blog posts, this is where we'll write code that actually does
@@ -31,6 +32,9 @@ def main():
     sleep(1)  # Give the program time to print messages sent from IB
 #    con.disconnect()
 
+
+def accountDetailsEnder(msg):
+    print('the account details ender worked!')
 
 def newContract(symbol, sec_type, exch='SMART', prim_exch='SMART', curr='USD',
                 expiry=None, strike=None, opt_type=None):
@@ -58,11 +62,14 @@ def getContractDetails(contract):
     con.reqContractDetails(reqId, contract)
 
 
-def getHistorialData(contract, whatToShow, reqId):
+def getHistorialData(contract, whatToShow, reqId, increment=0):
     # https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
     tickerId = reqId
-    endDateTime = datetime.today().strftime("%Y%m%d %H:%M:%S %Z")
-    durationStr = "5 D"
+    daysAgo = 1800 * increment
+    endDateTime = (datetime.today() - timedelta(days=daysAgo)).strftime("%Y%m%d %H:%M:%S %Z")
+#    endDateTime = datetime.today().strftime("%Y%m%d %H:%M:%S %Z")
+    durationStr = "5 Y"
+#    durationStr = "5 D"
     barSizeSetting = "1 day"
     # whatToShow='TRADES' #'TRADES', 'MIDPOINT', 'BID', 'ASK', 'BID_ASK',
     # 'HISTORICAL_VOLATILITY', 'OPTION_IMPLIED_VOLATILITY'
@@ -88,12 +95,12 @@ def marketDataHandler(msg):
     print(msg.typeName)
 
 if __name__ == "__main__":
-
+#    makeReservation('accountDetails')
     main()
 #    con.reqAccountUpdates(True, 'U1385930')
 #    sleep(8)
-    thisContract = newContract('LVLT', 'STK')
-#   thisContract = newContract('LVLT', 'OPT', expiry='20160520', opt_type='PUT')
+    thisContract = newContract('AAPL', 'STK')
+#    thisContract = newContract('LVLT', 'OPT', expiry='20160520', opt_type='PUT')
 #    trdList = []
 #    hisVolList = []
 #    impVolList = []
@@ -102,9 +109,11 @@ if __name__ == "__main__":
 #    con.cancelMktData(0)
 #    sleep(3)
 #    getContractDetails(thisContract)
-#    getHistorialData(thisContract, 'TRADES', 1)
+    for i in range(4):
+        getHistorialData(thisContract, 'TRADES', 1, i)
+        sleep(10)
 #    sleep(3)
-    getHistorialData(thisContract, 'HISTORICAL_VOLATILITY', 6)
+ #   getHistorialData(thisContract, 'HISTORICAL_VOLATILITY', 6)
     sleep(3)
 #    getHistorialData(thisContract, 'OPTION_IMPLIED_VOLATILITY', 7)
 #    sleep(3)
