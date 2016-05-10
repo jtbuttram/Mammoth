@@ -79,6 +79,7 @@ def initialize():
 
 
 def ready():
+    pass  # dummy code
     try:
         con
     except NameError:
@@ -120,6 +121,14 @@ def woolly():
         if weekday(t.today()) == 4:
             updateMammoth()
         sleep(secondsTilOpen()-540)  # wake up 9 minutes before trading
+
+
+def backlogger(marketObject=None, action='marketData', secondsDelay=0):
+    global backlog
+    backlog = []
+    # marketObject arg -> create tuple with marketObject, action, and secondsDelay
+    # no marketObject arg -> iterate forward through backlog and execute ripe actions
+
 
 
 ###############################################################################
@@ -209,14 +218,16 @@ def refreshPortfolio(portfolio, symbols=None):
     return thisPortfolio
 
 
-def getContractDetails(stockObject):
+def getStockDetails(stockObject):
     ready()
     reqId = stockObject.objId
-
     contract = newContract(stockObject.symbol, 'STK')
     callMonitor(reqId + 90000000, True)
     con.reqContractDetails(reqId + 90000000, contract)
 
+def getOptionDetails(stockObject):
+    ready()
+    reqId = stockObject.objId
     contract = newContract(stockObject.symbol, 'OPT', optType='PUT')
     callMonitor(reqId, True)
     con.reqContractDetails(reqId, contract)
