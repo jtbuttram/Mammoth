@@ -38,37 +38,35 @@ def dataLoader(sampleSize):
     step = n * tNum / float(sampleSize)
     print('step size is %d') % step
     trainingData = []
-    oneDay = timedelta(days=1)
     for s in thisPortfolio.stocks:
         dataShelf = []
         day = datetime.today()
         gap = 0
         while gap < 30:
-            dayStr = dateConverter(day)
             try:
-                h = s.historicalData[dayStr]
+                h = s.historicalData[dateConverter(day)]
                 thisData = []
                 for hd in [h.trades, h.historicalVolatility, h.impliedVolatility]:
                     for hdd in [hd.open, hd.high, hd.low, hd.close, hd.volume, hd.count, hd.WAP]:
-                        thisData.append([hdd])
-                        '''
-                        DATA INDEX:
-                                trades  histVol impVol
-                        open    0       7       14
-                        high    1       8       15
-                        low     2       9       16
-                        close   3       10      17
-                        volume  4       11      18
-                        count   5       12      19
-                        WAP     6       13      20
-                        '''
+                        thisData.append(hdd)
                 dataShelf.append(thisData)
                 gap = 0
             except KeyError:
                 gap += 1
-            day -= oneDay
+            day -= timedelta(days=1)
+        '''
+        DATASHELF DATA INDEX:
+                trades  histVol impVol
+        open    0       7       14
+        high    1       8       15
+        low     2       9       16
+        close   3       10      17
+        volume  4       11      18
+        count   5       12      19
+        WAP     6       13      20
+        '''
         dataLen = len(dataShelf)
-        print('dataShelf is %d long') % dataLen
+        #print('dataShelf is %d long') % dataLen
         c = stepper(step)
         i = int(c // tNum)
         while i < (dataLen - daysHist - tMax - 1):
@@ -88,9 +86,9 @@ def dataLoader(sampleSize):
                 # cleanHD = sigmoid(hd1)
                 for x in [0, 1, 2, 3, 4, 5, 6, 17]:
                     thisData.append(hd1.item(x))
-            npThisData = np.array(thisData)
+            npThisData = np.float32(np.array(thisData))  # make array elements type float32 for efficiency
             inputData = np.reshape(npThisData, (2002, 1))
-            outputData = targetData.item(6) / todayData.item(6)
+            outputData = np.float32(targetData.item(6) / todayData.item(6) - 1)
             trainingData.append((inputData, outputData))
             c += stepper(step)
         print('stock complete; %d data points in training data') % len(trainingData)
